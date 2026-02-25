@@ -1,0 +1,64 @@
+{
+  "name": "vscode-db-browser",
+  "displayName": "DB Sidebar Explorer",
+  "description": "Browse and edit MySQL and SQLite databases from a VS Code sidebar webview.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dbExplorer",
+          "title": "Databases",
+          "icon": "media/database.svg"
+        }
+      ]
+    },
+    "views": {
+      "dbExplorer": [
+        {
+          "icon": "./media/database.svg",
+          "type": "webview",
+          "id": "dbExplorer.sidebar",
+          "name": "Database Explorer"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "dbExplorer.addConnection",
+        "title": "DB Explorer: Add Connection"
+      },
+      {
+        "command": "dbExplorer.refresh",
+        "title": "DB Explorer: Refresh"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && mocha \"out/test/**/*.test.js\""
+  },
+  "dependencies": {
+    "mysql2": "^3.14.0",
+    "sqlite3": "^5.1.7",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.14.1",
+    "@types/uuid": "^10.0.0",
+    "@types/vscode": "^1.90.0",
+    "mocha": "^11.1.0",
+    "typescript": "^5.8.2"
+  }
+}

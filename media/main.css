@@ -1,0 +1,316 @@
+:root {
+  --accent: #2b8f78;
+  --accent-soft: #173f37;
+  --danger: #b54d4d;
+  --panel-border: color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  color: var(--vscode-foreground);
+  background: radial-gradient(circle at top, color-mix(in srgb, var(--vscode-editor-background) 80%, #1f3a34 20%), var(--vscode-sideBar-background));
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.root {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.panel {
+  background: color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checkboxField {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.inlineInput {
+  display: flex;
+  gap: 6px;
+}
+
+input,
+select,
+textarea {
+  border: 1px solid color-mix(in srgb, var(--vscode-input-border) 80%, transparent);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  padding: 5px 6px;
+  border-radius: 6px;
+  width: 100%;
+}
+
+button {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 9px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.06);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  background: color-mix(in srgb, var(--vscode-button-secondaryBackground) 80%, var(--accent-soft));
+  color: var(--vscode-button-secondaryForeground);
+}
+
+button.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+button.small {
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.actions,
+.inlineButtons,
+.controlsRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.treeConnection {
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px;
+  background: color-mix(in srgb, var(--vscode-sideBar-background) 80%, transparent);
+}
+
+.treeConnectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.treeTitle {
+  font-weight: 600;
+}
+
+.treeSchema {
+  margin-top: 6px;
+}
+
+.treeObjects {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.treeObject {
+  width: 100%;
+  text-align: left;
+  background: color-mix(in srgb, var(--vscode-button-secondaryBackground) 80%, transparent);
+  color: var(--vscode-foreground);
+}
+
+.treeObject.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge.ok {
+  background: color-mix(in srgb, #3da781 30%, transparent);
+  color: #9ce5cc;
+}
+
+.badge.err {
+  background: color-mix(in srgb, #ab4545 30%, transparent);
+  color: #ffb7b7;
+}
+
+.gridWrap {
+  overflow: auto;
+  max-height: 420px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 420px;
+}
+
+.grid th,
+.grid td {
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 60%, transparent);
+  padding: 4px;
+  vertical-align: top;
+}
+
+.grid th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--vscode-editor-background) 85%, #11332c 15%);
+}
+
+.headerSort {
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.cellInput {
+  width: 100%;
+  min-width: 80px;
+  padding: 3px 5px;
+}
+
+.ddl {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+}
+
+.muted {
+  opacity: 0.8;
+}
+
+.warning {
+  border: 1px solid color-mix(in srgb, #d0a350 40%, transparent);
+  background: color-mix(in srgb, #5a4724 35%, transparent);
+  color: #f7dca4;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.status {
+  min-height: 16px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.status.error {
+  color: #ffb5b5;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+}
+
+.modalContent {
+  width: min(520px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rowModalField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 800px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .grid {
+    min-width: 100%;
+  }
+}
