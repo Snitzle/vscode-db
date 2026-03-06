@@ -2,11 +2,13 @@ import * as vscode from 'vscode';
 import { DbClientManager } from './db/clientManager';
 import { ConnectionStore } from './state/connectionStore';
 import { SidebarViewProvider } from './webview/sidebarViewProvider';
+import { TablePanelManager } from './webview/tablePanelManager';
 
 export function activate(context: vscode.ExtensionContext): void {
   const connectionStore = new ConnectionStore(context);
   const clientManager = new DbClientManager(connectionStore);
-  const provider = new SidebarViewProvider(context, connectionStore, clientManager);
+  const tablePanels = new TablePanelManager(context, connectionStore, clientManager);
+  const provider = new SidebarViewProvider(context, connectionStore, clientManager, tablePanels);
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(SidebarViewProvider.viewId, provider, {
@@ -18,7 +20,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('dbExplorer.refresh', async () => {
-      await provider.refresh();
+      await Promise.all([provider.refresh(), tablePanels.refreshAll()]);
     }),
   );
 
@@ -32,6 +34,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     new vscode.Disposable(() => {
       provider.dispose();
+      tablePanels.dispose();
       void clientManager.disposeAll();
     }),
   );

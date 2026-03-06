@@ -3,6 +3,12 @@
   --accent-soft: #173f37;
   --danger: #b54d4d;
   --panel-border: color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --control-height: 32px;
+  --control-padding-inline: 12px;
 }
 
 * {
@@ -17,9 +23,17 @@ body {
   margin: 0;
   padding: 0;
   color: var(--vscode-foreground);
-  background: radial-gradient(circle at top, color-mix(in srgb, var(--vscode-editor-background) 80%, #1f3a34 20%), var(--vscode-sideBar-background));
+  background: var(--vscode-sideBar-background);
   font-family: var(--vscode-font-family);
   font-size: 12px;
+}
+
+body[data-surface='panel'] {
+  background: radial-gradient(
+    circle at top,
+    color-mix(in srgb, var(--vscode-editor-background) 92%, #1f3a34 8%),
+    var(--vscode-editor-background)
+  );
 }
 
 button,
@@ -30,36 +44,56 @@ textarea {
 }
 
 .root {
-  padding: 10px;
+  padding: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .toolbar {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toolbarTitle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 220px;
 }
 
 .panel {
   background: color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
-  padding: 10px;
+  padding: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .panelHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 600;
 }
 
 h2 {
-  margin: 0;
   font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -68,24 +102,30 @@ h2 {
 .formGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: var(--space-3);
+  align-items: start;
 }
 
 label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .checkboxField {
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .inlineInput {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.inlineInput > * {
+  min-width: 0;
 }
 
 input,
@@ -94,18 +134,30 @@ textarea {
   border: 1px solid color-mix(in srgb, var(--vscode-input-border) 80%, transparent);
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
-  padding: 5px 6px;
+  min-height: var(--control-height);
+  padding: 0 10px;
   border-radius: 6px;
   width: 100%;
+}
+
+textarea {
+  min-height: calc(var(--control-height) * 2);
+  padding: var(--space-2) 10px;
 }
 
 button {
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 5px 9px;
+  min-height: var(--control-height);
+  min-width: 96px;
+  padding: 0 var(--control-padding-inline);
   background: var(--accent);
   color: #fff;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 button:hover {
@@ -128,59 +180,80 @@ button.danger {
 }
 
 button.small {
-  padding: 2px 6px;
-  font-size: 11px;
+  min-height: var(--control-height);
+  min-width: 72px;
+  padding: 0 var(--control-padding-inline);
+  font-size: inherit;
 }
 
 .actions,
-.inlineButtons,
-.controlsRow {
+.inlineButtons {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
   flex-wrap: wrap;
   align-items: center;
+}
+
+.controlsRow {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.controlsRow > label {
+  min-width: 150px;
+  flex: 1 1 150px;
 }
 
 .tree {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .treeConnection {
   border: 1px solid var(--panel-border);
   border-radius: 6px;
-  padding: 6px;
+  padding: var(--space-3);
   background: color-mix(in srgb, var(--vscode-sideBar-background) 80%, transparent);
 }
 
 .treeConnectionHeader {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 6px;
-  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .treeTitle {
   font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.treeConnectionHeader .inlineButtons {
+  justify-self: end;
 }
 
 .treeSchema {
-  margin-top: 6px;
+  margin-top: var(--space-2);
 }
 
 .treeObjects {
-  margin-top: 6px;
+  margin-top: var(--space-2);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .treeObject {
   width: 100%;
+  min-width: 0;
   text-align: left;
   background: color-mix(in srgb, var(--vscode-button-secondaryBackground) 80%, transparent);
   color: var(--vscode-foreground);
+  justify-content: flex-start;
 }
 
 .treeObject.selected {
@@ -190,10 +263,13 @@ button.small {
 
 .badge {
   border-radius: 999px;
-  padding: 2px 8px;
+  min-height: 24px;
+  padding: 0 10px;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
 }
 
 .badge.ok {
@@ -213,6 +289,29 @@ button.small {
   border-radius: 6px;
 }
 
+body[data-surface='panel'] .root {
+  padding: var(--space-4);
+  gap: var(--space-4);
+}
+
+body[data-surface='panel'] .toolbar {
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+}
+
+body[data-surface='panel'] .toolbarTitle {
+  gap: var(--space-2);
+}
+
+body[data-surface='panel'] .toolbar .inlineButtons {
+  gap: var(--space-3);
+}
+
+body[data-surface='panel'] .gridWrap {
+  min-height: 320px;
+  max-height: calc(100vh - 340px);
+}
+
 .grid {
   width: 100%;
   border-collapse: collapse;
@@ -222,8 +321,13 @@ button.small {
 .grid th,
 .grid td {
   border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 60%, transparent);
-  padding: 4px;
+  padding: var(--space-2) 10px;
   vertical-align: top;
+}
+
+body[data-surface='panel'] .grid th,
+body[data-surface='panel'] .grid td {
+  padding: 6px 8px;
 }
 
 .grid th {
@@ -238,14 +342,23 @@ button.small {
   color: inherit;
   border: none;
   padding: 0;
+  min-height: 0;
+  min-width: 0;
   text-align: left;
   width: 100%;
+  justify-content: flex-start;
 }
 
 .cellInput {
   width: 100%;
   min-width: 80px;
-  padding: 3px 5px;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+body[data-surface='panel'] .cellInput {
+  min-height: 24px;
+  padding: 0 6px;
 }
 
 .ddl {
@@ -256,8 +369,12 @@ button.small {
   overflow: auto;
   border: 1px solid var(--panel-border);
   border-radius: 6px;
-  padding: 8px;
+  padding: var(--space-3);
   background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+}
+
+body[data-surface='panel'] .ddl {
+  max-height: 35vh;
 }
 
 .muted {
@@ -268,13 +385,16 @@ button.small {
   border: 1px solid color-mix(in srgb, #d0a350 40%, transparent);
   background: color-mix(in srgb, #5a4724 35%, transparent);
   color: #f7dca4;
-  padding: 6px 8px;
+  padding: var(--space-2) var(--space-3);
   border-radius: 6px;
 }
 
 .status {
-  min-height: 16px;
+  min-height: 20px;
+  padding: 0 var(--space-1);
   color: var(--vscode-descriptionForeground);
+  display: flex;
+  align-items: center;
 }
 
 .status.error {
@@ -296,17 +416,16 @@ button.small {
   background: var(--vscode-editorWidget-background);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
-  padding: 12px;
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
 
 .rowModalField {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
+  gap: var(--space-1);
 }
 
 @media (max-width: 800px) {
@@ -314,7 +433,25 @@ button.small {
     grid-template-columns: 1fr;
   }
 
+  .treeConnectionHeader {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .treeConnectionHeader .inlineButtons {
+    justify-self: stretch;
+  }
+
+  .controlsRow > label {
+    flex-basis: 100%;
+  }
+
   .grid {
     min-width: 100%;
+  }
+
+  body[data-surface='panel'] .gridWrap {
+    min-height: 240px;
+    max-height: none;
   }
 }

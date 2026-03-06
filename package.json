@@ -1,7 +1,7 @@
 {
   "name": "vscode-db-browser",
   "displayName": "DB Sidebar Explorer",
-  "description": "Browse and edit MySQL and SQLite databases from a VS Code sidebar webview.",
+  "description": "Browse and edit MySQL and SQLite databases from a VS Code sidebar tree and editor tabs.",
   "version": "0.0.1",
   "publisher": "local",
   "license": "MIT",
@@ -35,13 +35,29 @@
     "commands": [
       {
         "command": "dbExplorer.addConnection",
-        "title": "DB Explorer: Add Connection"
+        "title": "DB Explorer: Add Connection",
+        "icon": "$(add)"
       },
       {
         "command": "dbExplorer.refresh",
-        "title": "DB Explorer: Refresh"
+        "title": "DB Explorer: Refresh",
+        "icon": "$(refresh)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "dbExplorer.addConnection",
+          "when": "view == dbExplorer.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "dbExplorer.refresh",
+          "when": "view == dbExplorer.sidebar",
+          "group": "navigation@2"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",

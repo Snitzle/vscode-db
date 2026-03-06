@@ -4,9 +4,9 @@ import {
   ConnectionTreeNode,
   DeleteRowsRequest,
   InsertRowRequest,
+  FilterSpec,
   RowData,
   SortSpec,
-  FilterSpec,
   TableInfo,
   UpdateRowsRequest,
 } from '../types';
@@ -15,7 +15,7 @@ export interface RequestBase {
   requestId: string;
 }
 
-export type WebviewRequest =
+export type SidebarWebviewRequest =
   | ({ kind: 'ready' } & RequestBase)
   | ({ kind: 'refreshTree' } & RequestBase)
   | ({ kind: 'saveConnection'; mode: 'add' | 'edit'; connection: ConnectionInput } & RequestBase)
@@ -29,46 +29,38 @@ export type WebviewRequest =
       objectType: 'table' | 'view';
       pageSize: number;
     } & RequestBase)
-  | ({
-      kind: 'queryTableRows';
-      connectionId: string;
-      schema: string;
-      table: string;
-      objectType: 'table' | 'view';
-      page: number;
-      pageSize: number;
-      sort?: SortSpec;
-      filter?: FilterSpec;
-    } & RequestBase)
-  | ({ kind: 'insertRow'; connectionId: string; payload: InsertRowRequest } & RequestBase)
-  | ({
-      kind: 'duplicateRow';
-      connectionId: string;
-      schema: string;
-      table: string;
-      row: RowData;
-    } & RequestBase)
-  | ({ kind: 'updateRows'; connectionId: string; payload: UpdateRowsRequest } & RequestBase)
-  | ({ kind: 'deleteRows'; connectionId: string; payload: DeleteRowsRequest } & RequestBase)
-  | ({
-      kind: 'viewDdl';
-      connectionId: string;
-      schema: string;
-      objectName: string;
-      objectType: 'table' | 'view';
-    } & RequestBase)
-  | ({ kind: 'openDdlInEditor'; title: string; ddl: string } & RequestBase)
   | ({ kind: 'selectConnectionForEdit'; connectionId: string } & RequestBase);
 
 export interface EventBase {
   requestId?: string;
 }
 
-export type ExtensionEvent =
+export type SidebarExtensionEvent =
   | ({ kind: 'state'; tree: ConnectionTreeNode[]; connections: ConnectionMeta[] } & EventBase)
   | ({ kind: 'sqliteFilePicked'; filePath?: string } & EventBase)
   | ({ kind: 'connectionSelectedForEdit'; connection: ConnectionMeta } & EventBase)
   | ({ kind: 'triggerAddConnection' } & EventBase)
+  | ({ kind: 'info'; message: string } & EventBase)
+  | ({ kind: 'error'; message: string; details?: string } & EventBase);
+
+export type TablePanelRequest =
+  | ({ kind: 'ready' } & RequestBase)
+  | ({ kind: 'refreshTable' } & RequestBase)
+  | ({
+      kind: 'queryTableRows';
+      page: number;
+      pageSize: number;
+      sort?: SortSpec;
+      filter?: FilterSpec;
+    } & RequestBase)
+  | ({ kind: 'insertRow'; payload: InsertRowRequest } & RequestBase)
+  | ({ kind: 'duplicateRow'; row: RowData } & RequestBase)
+  | ({ kind: 'updateRows'; payload: UpdateRowsRequest } & RequestBase)
+  | ({ kind: 'deleteRows'; payload: DeleteRowsRequest } & RequestBase)
+  | ({ kind: 'viewDdl' } & RequestBase)
+  | ({ kind: 'openDdlInEditor'; title: string; ddl: string } & RequestBase);
+
+export type TablePanelEvent =
   | ({
       kind: 'tableData';
       connectionId: string;
