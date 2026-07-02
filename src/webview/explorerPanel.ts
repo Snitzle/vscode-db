@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { DbClientManager } from '../db/clientManager';
+import { exportDatabaseDump } from '../export/exportService';
 import { ConnectionStore } from '../state/connectionStore';
 import { ConnectionInput, ConnectionMeta, ConnectionTreeNode } from '../types';
 import { SidebarExtensionEvent, SidebarWebviewRequest } from './protocol';
@@ -7,12 +8,16 @@ import { TablePanelManager } from './tablePanelManager';
 import { renderWebviewHtml, toUserError } from './utils';
 
 /**
- * The Database Explorer as a singleton editor tab (main window) rather than a
- * sidebar view. Hosts connection management and the schema tree; opening a table
- * delegates to {@link TablePanelManager}, which opens the grid as its own tab.
+ * The Database Explorer as a sidebar webview view. Hosts connection management
+ * and the schema tree; opening a table delegates to {@link TablePanelManager},
+ * which opens the grid as an editor tab. The webview persists its own UI state
+ * (expanded schemas, selection, filter) via the webview state API, and the view
+ * is registered with `retainContextWhenHidden` so switching views is cheap.
  */
-export class ExplorerPanel implements vscode.Disposable {
-  private panel: vscode.WebviewPanel | undefined;
+export class ExplorerViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
+  static readonly viewId = 'dbExplorer.home';
+
+  private view: vscode.WebviewView | undefined;
   private readonly disposables: vscode.Disposable[] = [];
   private pendingAddConnection = false;
 
@@ -23,57 +28,49 @@ export class ExplorerPanel implements vscode.Disposable {
     private readonly tablePanels: TablePanelManager,
   ) {}
 
-  open(): void {
-    if (this.panel) {
-      this.panel.reveal(vscode.ViewColumn.Active, false);
-      return;
-    }
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.view = webviewView;
 
-    const panel = vscode.window.createWebviewPanel(
-      'dbExplorer.explorer',
-      'Database Explorer',
-      { preserveFocus: false, viewColumn: vscode.ViewColumn.Active },
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [
-          vscode.Uri.joinPath(this.context.extensionUri, 'media'),
-          vscode.Uri.joinPath(this.context.extensionUri, 'dist'),
-        ],
-      },
-    );
-
-    panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'database.svg');
-    panel.webview.html = this.buildHtml(panel.webview);
-
-    this.panel = panel;
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.context.extensionUri, 'media'),
+        vscode.Uri.joinPath(this.context.extensionUri, 'dist'),
+      ],
+    };
+    webviewView.webview.html = this.buildHtml(webviewView.webview);
 
     this.disposables.push(
-      panel.webview.onDidReceiveMessage(async (message: SidebarWebviewRequest) => {
+      webviewView.webview.onDidReceiveMessage(async (message: SidebarWebviewRequest) => {
         await this.handleMessage(message);
         if (message.kind === 'ready' && this.pendingAddConnection) {
           this.pendingAddConnection = false;
           this.postEvent({ kind: 'triggerAddConnection' });
         }
       }),
-      panel.onDidDispose(() => {
-        this.panel = undefined;
+      webviewView.onDidDispose(() => {
+        this.view = undefined;
         vscode.Disposable.from(...this.disposables).dispose();
         this.disposables.length = 0;
       }),
     );
   }
 
+  /** Reveal the explorer view in the sidebar (resolving it if needed). */
+  async focus(): Promise<void> {
+    await vscode.commands.executeCommand(`${ExplorerViewProvider.viewId}.focus`);
+  }
+
   async refresh(): Promise<void> {
-    if (this.panel) {
+    if (this.view) {
       await this.postState();
     }
   }
 
   /** Dev-only: re-render the webview HTML so a rebuilt bundle is picked up. */
   reloadWebview(): void {
-    if (this.panel) {
-      this.panel.webview.html = this.buildHtml(this.panel.webview);
+    if (this.view) {
+      this.view.webview.html = this.buildHtml(this.view.webview);
     }
   }
 
@@ -82,27 +79,26 @@ export class ExplorerPanel implements vscode.Disposable {
       scriptFile: 'dist/main.js',
       styleFiles: ['media/main.css', 'dist/main.css'],
       title: 'Database Explorer',
-      surface: 'panel',
+      surface: 'sidebar',
     });
   }
 
   requestAddConnection(): void {
-    const wasOpen = Boolean(this.panel);
-    this.open();
-
-    if (wasOpen) {
+    if (this.view) {
+      this.view.show?.(false);
       this.postEvent({ kind: 'triggerAddConnection' });
-    } else {
-      // Defer until the freshly created webview signals it is ready.
-      this.pendingAddConnection = true;
+      return;
     }
+
+    // Defer until the view resolves and its webview signals it is ready.
+    this.pendingAddConnection = true;
+    void this.focus();
   }
 
   dispose(): void {
     vscode.Disposable.from(...this.disposables).dispose();
     this.disposables.length = 0;
-    this.panel?.dispose();
-    this.panel = undefined;
+    this.view = undefined;
   }
 
   private async handleMessage(message: SidebarWebviewRequest): Promise<void> {
@@ -129,6 +125,10 @@ export class ExplorerPanel implements vscode.Disposable {
 
         case 'selectConnectionForEdit':
           await this.selectConnectionForEdit(message.connectionId, message.requestId);
+          return;
+
+        case 'exportDatabase':
+          await this.exportDatabase(message.connectionId, message.requestId);
           return;
 
         case 'openTable':
@@ -241,6 +241,19 @@ export class ExplorerPanel implements vscode.Disposable {
     this.postEvent({ kind: 'connectionSelectedForEdit', connection }, requestId);
   }
 
+  private async exportDatabase(connectionId: string, requestId?: string): Promise<void> {
+    const connection = await this.connectionStore.getConnection(connectionId);
+    if (!connection) {
+      throw new Error('Connection not found.');
+    }
+
+    const client = await this.clientManager.getClient(connectionId);
+    const saved = await exportDatabaseDump(client, connection.name);
+    if (saved) {
+      this.postEvent({ kind: 'info', message: `Database exported to ${saved}.` }, requestId);
+    }
+  }
+
   private async pickSqliteFile(): Promise<string | undefined> {
     const selected = await vscode.window.showOpenDialog({
       canSelectMany: false,
@@ -255,11 +268,11 @@ export class ExplorerPanel implements vscode.Disposable {
   }
 
   private postEvent(event: SidebarExtensionEvent, requestId?: string): void {
-    if (!this.panel) {
+    if (!this.view) {
       return;
     }
 
-    void this.panel.webview.postMessage({
+    void this.view.webview.postMessage({
       ...event,
       requestId,
     });

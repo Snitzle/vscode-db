@@ -16,6 +16,7 @@ import { getVsCodeApi } from './vscodeApi.js';
       objectType: 'table',
     },
     tabulator: null,
+    gridSignature: null,
   };
 
   let requestCounter = 0;
@@ -30,6 +31,7 @@ import { getVsCodeApi } from './vscodeApi.js';
         </div>
         <div class="inlineButtons">
           <button id="btnRefreshTable" class="iconBtn" title="Refresh" aria-label="Refresh"><i class="codicon codicon-refresh" aria-hidden="true"></i></button>
+          <button id="btnExportTable" class="secondary hasIcon" disabled><i class="codicon codicon-desktop-download" aria-hidden="true"></i>Export</button>
           <button id="btnViewDdl" class="secondary hasIcon" disabled><i class="codicon codicon-code" aria-hidden="true"></i>DDL</button>
         </div>
       </div>
@@ -46,7 +48,7 @@ import { getVsCodeApi } from './vscodeApi.js';
             <span class="toolbarDivider" aria-hidden="true"></span>
 
             <button id="btnToggleFilter" class="secondary hasIcon" aria-pressed="false"><i class="codicon codicon-filter" aria-hidden="true"></i>Filter</button>
-            <button id="filterChip" class="filterChip" hidden></button>
+            <span id="filterChips" class="filterChips"></span>
 
             <div class="findBox">
               <i class="codicon codicon-search" aria-hidden="true"></i>
@@ -68,9 +70,6 @@ import { getVsCodeApi } from './vscodeApi.js';
           </div>
 
           <div id="filterBar" class="filterBar" hidden>
-            <label class="whereField">WHERE
-              <input id="whereInput" placeholder="raw SQL — e.g. account_role = 'Owner' and events_count = 1" />
-            </label>
             <label>Column
               <select id="filterColumn"></select>
             </label>
@@ -92,9 +91,13 @@ import { getVsCodeApi } from './vscodeApi.js';
             <label class="filterValueField">Value
               <input id="filterValue" placeholder="filter value" />
             </label>
-            <button id="btnApplyFilter" class="secondary">Apply</button>
-            <button id="btnClearFilter" class="secondary">Clear</button>
-            <span class="filterHint muted">A raw WHERE overrides the column filter. Shift-click a header to sort by multiple columns.</span>
+            <button id="btnAddFilter" class="secondary">Add filter</button>
+            <label class="whereField">Raw WHERE
+              <input id="whereInput" placeholder="e.g. account_role = 'Owner' and events_count = 1" />
+            </label>
+            <button id="btnApplyFilter" class="secondary">Apply WHERE</button>
+            <button id="btnClearFilter" class="secondary">Clear all</button>
+            <span class="filterHint muted">Filters combine with AND (including the raw WHERE) — click a chip to remove it. Shift-click a header to sort by multiple columns.</span>
           </div>
 
           <div id="editBar" class="editBar" hidden>
@@ -169,8 +172,10 @@ import { getVsCodeApi } from './vscodeApi.js';
     filterOperator: document.getElementById('filterOperator'),
     filterValue: document.getElementById('filterValue'),
     whereInput: document.getElementById('whereInput'),
+    btnAddFilter: document.getElementById('btnAddFilter'),
     btnApplyFilter: document.getElementById('btnApplyFilter'),
     btnClearFilter: document.getElementById('btnClearFilter'),
+    btnExportTable: document.getElementById('btnExportTable'),
     btnAddRow: document.getElementById('btnAddRow'),
     btnDuplicateRow: document.getElementById('btnDuplicateRow'),
     btnDeleteRows: document.getElementById('btnDeleteRows'),
@@ -194,7 +199,7 @@ import { getVsCodeApi } from './vscodeApi.js';
     btnCopyValue: document.getElementById('btnCopyValue'),
     btnCloseValueModal: document.getElementById('btnCloseValueModal'),
     btnToggleFilter: document.getElementById('btnToggleFilter'),
-    filterChip: document.getElementById('filterChip'),
+    filterChips: document.getElementById('filterChips'),
     filterBar: document.getElementById('filterBar'),
     editBar: document.getElementById('editBar'),
     ddlSection: document.getElementById('ddlSection'),
@@ -216,7 +221,12 @@ import { getVsCodeApi } from './vscodeApi.js';
     elements.filterBar.hidden = !show;
     elements.btnToggleFilter.setAttribute('aria-pressed', String(show));
   });
-  elements.filterChip.addEventListener('click', () => clearFilter());
+  elements.btnExportTable.addEventListener('click', () => {
+    if (!state.activeTable) {
+      return;
+    }
+    sendRequest('exportTable', { selection: getSelectedOriginalRows() });
+  });
   elements.btnCloseDdl.addEventListener('click', () => {
     elements.ddlSection.hidden = true;
   });
@@ -230,37 +240,23 @@ import { getVsCodeApi } from './vscodeApi.js';
     queryActiveTable();
   });
 
-  elements.btnApplyFilter.addEventListener('click', () => {
-    if (!state.activeTable) {
-      return;
+  elements.btnAddFilter.addEventListener('click', () => addFilterFromInputs());
+  elements.filterValue.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addFilterFromInputs();
     }
-
-    const rawWhere = elements.whereInput.value.trim();
-    if (rawWhere) {
-      state.activeTable.where = rawWhere;
-      state.activeTable.filter = undefined;
-    } else {
-      const operator = elements.filterOperator.value;
-      const filter = {
-        column: elements.filterColumn.value,
-        operator,
-      };
-
-      if (operator !== 'isNull' && operator !== 'isNotNull') {
-        filter.value = parseInputToScalar(elements.filterValue.value, getColumnByName(elements.filterColumn.value));
-      }
-
-      state.activeTable.filter = filter;
-      state.activeTable.where = undefined;
-    }
-
-    state.activeTable.page = 0;
-    elements.filterBar.hidden = true;
-    elements.btnToggleFilter.setAttribute('aria-pressed', 'false');
-    queryActiveTable();
   });
 
-  elements.btnClearFilter.addEventListener('click', () => clearFilter());
+  elements.btnApplyFilter.addEventListener('click', () => applyRawWhere());
+  elements.whereInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyRawWhere();
+    }
+  });
+
+  elements.btnClearFilter.addEventListener('click', () => clearAllFilters());
 
   elements.btnApplyEdits.addEventListener('click', () => applyPendingEdits());
   elements.btnCancelEdits.addEventListener('click', () => cancelEdits());
@@ -335,20 +331,19 @@ import { getVsCodeApi } from './vscodeApi.js';
           page: message.page,
           pageSize: message.pageSize,
           sort: message.sort,
-          filter: message.filter,
+          filters: message.filters,
           where: message.where,
           info: message.info,
           rows: message.rows,
           totalCount: message.totalCount,
         };
         elements.pageSize.value = String(message.pageSize);
-        elements.findInPage.value = '';
         elements.whereInput.value = message.where || '';
         state.pendingEdits.clear();
         renderMeta();
         renderGrid();
         populateFilterColumns();
-        updateFilterChip();
+        renderFilterChips();
         break;
 
       case 'ddl':
@@ -383,13 +378,27 @@ import { getVsCodeApi } from './vscodeApi.js';
     vscode.postMessage({ kind, requestId, ...payload });
   }
 
+  const OP_LABELS = {
+    eq: '=',
+    neq: '!=',
+    gt: '>',
+    gte: '>=',
+    lt: '<',
+    lte: '<=',
+    contains: 'contains',
+    startsWith: 'starts with',
+    endsWith: 'ends with',
+    isNull: 'is null',
+    isNotNull: 'is not null',
+  };
+
   function populateFilterColumns() {
+    const previous = elements.filterColumn.value;
+    elements.filterColumn.innerHTML = '';
     if (!state.activeTable) {
-      elements.filterColumn.innerHTML = '';
       return;
     }
 
-    elements.filterColumn.innerHTML = '';
     for (const column of state.activeTable.info.columns) {
       const option = document.createElement('option');
       option.value = column.name;
@@ -397,27 +406,75 @@ import { getVsCodeApi } from './vscodeApi.js';
       elements.filterColumn.appendChild(option);
     }
 
-    if (state.activeTable.filter) {
-      elements.filterColumn.value = state.activeTable.filter.column;
-      elements.filterOperator.value = state.activeTable.filter.operator;
-      if (state.activeTable.filter.value !== undefined && state.activeTable.filter.value !== null) {
-        elements.filterValue.value = String(state.activeTable.filter.value);
-      } else {
-        elements.filterValue.value = '';
-      }
-      return;
-    }
-
-    if (state.activeTable.info.columns.length > 0) {
-      elements.filterColumn.value = state.activeTable.info.columns[0].name;
-    }
+    const names = state.activeTable.info.columns.map((column) => column.name);
+    elements.filterColumn.value = names.includes(previous) ? previous : names[0] || '';
   }
 
-  function clearFilter() {
+  function addFilterFromInputs() {
     if (!state.activeTable) {
       return;
     }
-    state.activeTable.filter = undefined;
+
+    const column = elements.filterColumn.value;
+    if (!column) {
+      return;
+    }
+
+    const operator = elements.filterOperator.value;
+    const filter = { column, operator };
+
+    if (operator !== 'isNull' && operator !== 'isNotNull') {
+      if (!elements.filterValue.value.trim()) {
+        showStatus('Enter a value for the filter.', true);
+        return;
+      }
+      filter.value = parseInputToScalar(elements.filterValue.value, getColumnByName(column));
+    }
+
+    elements.filterValue.value = '';
+    appendFilter(filter);
+  }
+
+  function appendFilter(filter) {
+    const filters = Array.isArray(state.activeTable.filters) ? state.activeTable.filters.slice() : [];
+    const duplicate = filters.some(
+      (existing) =>
+        existing.column === filter.column &&
+        existing.operator === filter.operator &&
+        String(existing.value ?? '') === String(filter.value ?? ''),
+    );
+    if (!duplicate) {
+      filters.push(filter);
+    }
+
+    state.activeTable.filters = filters;
+    state.activeTable.page = 0;
+    queryActiveTable();
+  }
+
+  function removeFilterAt(index) {
+    const filters = (state.activeTable.filters || []).slice();
+    filters.splice(index, 1);
+    state.activeTable.filters = filters.length ? filters : undefined;
+    state.activeTable.page = 0;
+    queryActiveTable();
+  }
+
+  function applyRawWhere() {
+    if (!state.activeTable) {
+      return;
+    }
+
+    state.activeTable.where = elements.whereInput.value.trim() || undefined;
+    state.activeTable.page = 0;
+    queryActiveTable();
+  }
+
+  function clearAllFilters() {
+    if (!state.activeTable) {
+      return;
+    }
+    state.activeTable.filters = undefined;
     state.activeTable.where = undefined;
     elements.filterValue.value = '';
     elements.whereInput.value = '';
@@ -425,39 +482,37 @@ import { getVsCodeApi } from './vscodeApi.js';
     queryActiveTable();
   }
 
-  function updateFilterChip() {
+  function renderFilterChips() {
+    elements.filterChips.innerHTML = '';
     const active = state.activeTable;
-    if (active && active.where) {
-      elements.filterChip.hidden = false;
-      elements.filterChip.title = 'Clear filter';
-      elements.filterChip.textContent = `WHERE ${active.where}  ✕`;
+    if (!active) {
       return;
     }
-    const filter = active && active.filter;
-    if (!filter) {
-      elements.filterChip.hidden = true;
-      elements.filterChip.textContent = '';
-      return;
+
+    (active.filters || []).forEach((filter, index) => {
+      const opText = OP_LABELS[filter.operator] || filter.operator;
+      const valueText =
+        filter.operator === 'isNull' || filter.operator === 'isNotNull' ? '' : ` ${filter.value ?? ''}`;
+      appendChip(`${filter.column} ${opText}${valueText}`, 'Remove this filter', () => removeFilterAt(index));
+    });
+
+    if (active.where) {
+      appendChip(`WHERE ${active.where}`, 'Remove the raw WHERE', () => {
+        active.where = undefined;
+        elements.whereInput.value = '';
+        active.page = 0;
+        queryActiveTable();
+      });
     }
-    const opLabels = {
-      eq: '=',
-      neq: '!=',
-      gt: '>',
-      gte: '>=',
-      lt: '<',
-      lte: '<=',
-      contains: 'contains',
-      startsWith: 'starts with',
-      endsWith: 'ends with',
-      isNull: 'is null',
-      isNotNull: 'is not null',
-    };
-    const opText = opLabels[filter.operator] || filter.operator;
-    const valueText =
-      filter.operator === 'isNull' || filter.operator === 'isNotNull' ? '' : ` ${filter.value ?? ''}`;
-    elements.filterChip.hidden = false;
-    elements.filterChip.title = 'Clear filter';
-    elements.filterChip.textContent = `${filter.column} ${opText}${valueText}  ✕`;
+  }
+
+  function appendChip(text, title, onRemove) {
+    const chip = document.createElement('button');
+    chip.className = 'filterChip';
+    chip.title = title;
+    chip.textContent = `${text}  ✕`;
+    chip.addEventListener('click', onRemove);
+    elements.filterChips.appendChild(chip);
   }
 
   function renderMeta() {
@@ -466,6 +521,7 @@ import { getVsCodeApi } from './vscodeApi.js';
       elements.tableMeta.textContent = 'Waiting for database rows.';
       elements.tableControls.hidden = true;
       elements.btnViewDdl.disabled = true;
+      elements.btnExportTable.disabled = true;
       elements.tableWarning.hidden = true;
       elements.pageInfo.textContent = '';
       return;
@@ -475,6 +531,7 @@ import { getVsCodeApi } from './vscodeApi.js';
     elements.tableTitle.textContent = `${active.info.schema}.${active.info.name}`;
     elements.tableControls.hidden = false;
     elements.btnViewDdl.disabled = false;
+    elements.btnExportTable.disabled = false;
 
     const start = active.page * active.pageSize + 1;
     const end = active.page * active.pageSize + active.rows.length;
@@ -485,6 +542,10 @@ import { getVsCodeApi } from './vscodeApi.js';
     elements.tableMeta.textContent = `${active.info.objectType.toUpperCase()} • ${active.info.columns.length} columns`;
 
     elements.btnPrevPage.disabled = active.page <= 0;
+    elements.btnNextPage.disabled =
+      typeof active.totalCount === 'number'
+        ? (active.page + 1) * active.pageSize >= active.totalCount
+        : active.rows.length < active.pageSize;
 
     if (active.info.readOnly) {
       elements.tableWarning.hidden = false;
@@ -499,11 +560,47 @@ import { getVsCodeApi } from './vscodeApi.js';
     updateSelectionButtons();
   }
 
+  function gridSignature(active) {
+    // Everything the column definitions (and their closures) are derived from.
+    // Sort is included because the header titles render sort arrows.
+    return JSON.stringify([
+      active.info.schema,
+      active.info.name,
+      active.info.readOnly,
+      active.info.writableKey.columns,
+      active.info.columns.map((column) => [
+        column.name,
+        column.dataType,
+        column.isPrimaryKey,
+        column.isUniqueKey,
+        column.isAutoIncrement,
+      ]),
+      active.sort ?? [],
+    ]);
+  }
+
   function renderGrid() {
     const active = state.activeTable;
     if (!active) {
       return;
     }
+
+    const signature = gridSignature(active);
+    if (state.tabulator && state.gridSignature === signature) {
+      // Same columns and sort: swap the data in place so column widths, order,
+      // visibility, and scroll position survive paging, refreshes, and edits.
+      state.tabulator
+        .replaceData(buildData(active))
+        .then(() => {
+          updateSelectionButtons();
+          updateAggregateStrip();
+          applyFindFilter();
+        })
+        .catch((error) => console.error(error));
+      return;
+    }
+
+    state.gridSignature = signature;
 
     if (state.tabulator) {
       try {
@@ -562,8 +659,8 @@ import { getVsCodeApi } from './vscodeApi.js';
         hozAlign: 'center',
         headerHozAlign: 'center',
         headerSort: false,
-        width: 44,
-        minWidth: 44,
+        width: 34,
+        minWidth: 34,
         frozen: true,
         resizable: false,
         cssClass: 'dbx-select-col',
@@ -804,14 +901,12 @@ import { getVsCodeApi } from './vscodeApi.js';
     }
     const columnName = cell.getColumn().getField();
     const value = cell.getValue();
-    state.activeTable.filter =
+    // Appends to the active filters so repeated right-clicks drill down.
+    appendFilter(
       value === null || value === undefined
         ? { column: columnName, operator: 'isNull' }
-        : { column: columnName, operator: 'eq', value };
-    state.activeTable.where = undefined;
-    elements.whereInput.value = '';
-    state.activeTable.page = 0;
-    queryActiveTable();
+        : { column: columnName, operator: 'eq', value },
+    );
   }
 
   function applyFindFilter() {
@@ -925,7 +1020,7 @@ import { getVsCodeApi } from './vscodeApi.js';
       page: state.activeTable.page,
       pageSize: state.activeTable.pageSize,
       sort: state.activeTable.sort,
-      filter: state.activeTable.filter,
+      filters: state.activeTable.filters,
       where: state.activeTable.where,
     });
   }

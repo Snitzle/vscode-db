@@ -4,17 +4,33 @@ import { getVsCodeApi } from './vscodeApi.js';
 (() => {
   const vscode = getVsCodeApi();
 
+  // UI state survives the view being hidden, collapsed, or the window reloading.
+  const persisted = vscode.getState() || {};
+
   const state = {
     connections: [],
     tree: [],
-    selectedObject: null,
-    filterTerm: '',
+    selectedObject: persisted.selectedObject || null,
+    filterTerm: persisted.filterTerm || '',
+    collapsedSchemas: new Set(persisted.collapsedSchemas || []),
     connectionForm: {
       visible: false,
       mode: 'add',
       editingId: undefined,
     },
   };
+
+  function persistUiState() {
+    vscode.setState({
+      selectedObject: state.selectedObject,
+      filterTerm: state.filterTerm,
+      collapsedSchemas: [...state.collapsedSchemas],
+    });
+  }
+
+  function schemaKey(connectionId, schemaName) {
+    return `${connectionId}::${schemaName}`;
+  }
 
   let requestCounter = 0;
 
@@ -159,8 +175,10 @@ import { getVsCodeApi } from './vscodeApi.js';
   elements.btnBrowseSqlite.addEventListener('click', () => sendRequest('pickSqliteFile'));
   elements.btnAddConnection.addEventListener('click', () => openConnectionForm('add'));
   elements.btnRefreshTree.addEventListener('click', () => sendRequest('refreshTree'));
+  elements.objectFilter.value = state.filterTerm;
   elements.objectFilter.addEventListener('input', () => {
     state.filterTerm = elements.objectFilter.value;
+    persistUiState();
     renderConnectionTree();
   });
   elements.connectionFormPanel.addEventListener('click', (event) => {
@@ -381,6 +399,18 @@ import { getVsCodeApi } from './vscodeApi.js';
       const actions = document.createElement('div');
       actions.className = 'inlineButtons';
 
+      if (connection.status === 'connected') {
+        const exportBtn = document.createElement('button');
+        exportBtn.className = 'iconBtn';
+        exportBtn.title = 'Export database (SQL dump)';
+        exportBtn.setAttribute('aria-label', 'Export database');
+        exportBtn.innerHTML = '<i class="codicon codicon-desktop-download" aria-hidden="true"></i>';
+        exportBtn.addEventListener('click', () => {
+          sendRequest('exportDatabase', { connectionId: connection.connectionId });
+        });
+        actions.appendChild(exportBtn);
+      }
+
       const editBtn = document.createElement('button');
       editBtn.className = 'iconBtn';
       editBtn.title = 'Edit connection';
@@ -425,7 +455,22 @@ import { getVsCodeApi } from './vscodeApi.js';
 
         const schemaDetails = document.createElement('details');
         schemaDetails.className = 'treeSchema';
-        schemaDetails.open = true;
+        // Schemas default to open; a collapsed set (not an expanded one) means
+        // newly discovered schemas start expanded. An active filter forces
+        // everything open so matches are visible, without touching saved state.
+        const key = schemaKey(connection.connectionId, schema.name);
+        schemaDetails.open = term ? true : !state.collapsedSchemas.has(key);
+        schemaDetails.addEventListener('toggle', () => {
+          if (state.filterTerm.trim()) {
+            return;
+          }
+          if (schemaDetails.open) {
+            state.collapsedSchemas.delete(key);
+          } else {
+            state.collapsedSchemas.add(key);
+          }
+          persistUiState();
+        });
 
         const summary = document.createElement('summary');
         const tableCount = schema.objects.filter((object) => object.type !== 'view').length;
@@ -473,6 +518,7 @@ import { getVsCodeApi } from './vscodeApi.js';
               objectName: object.name,
               objectType: object.type,
             };
+            persistUiState();
 
             sendRequest('openTable', {
               connectionId: connection.connectionId,

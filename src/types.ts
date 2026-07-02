@@ -142,7 +142,8 @@ export interface TableQuery {
   page: number;
   pageSize: number;
   sort?: SortSpec[];
-  filter?: FilterSpec;
+  /** Structured filters, combined with AND (and with `where` when both are set). */
+  filters?: FilterSpec[];
   where?: string;
   includeCount?: boolean;
 }

@@ -73,14 +73,20 @@
   background: color-mix(in srgb, var(--vscode-editor-background) 97%, var(--vscode-foreground) 3%);
 }
 
+/* Hover/selection are translucent tints over the editor background so cell
+   text keeps its theme color in every theme (opaque list-selection tokens can
+   be near-white and make rows unreadable) and the pending-edit highlight stays
+   visible on selected rows. */
 .tabulator-row.tabulator-selectable:hover {
-  background: var(--vscode-list-hoverBackground) !important;
-  color: var(--vscode-list-hoverForeground, var(--vscode-foreground)) !important;
+  background: color-mix(in srgb, var(--vscode-focusBorder) 10%, var(--vscode-editor-background)) !important;
 }
 
 .tabulator-row.tabulator-selected {
-  background: var(--vscode-list-activeSelectionBackground) !important;
-  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)) !important;
+  background: color-mix(in srgb, var(--vscode-focusBorder) 22%, var(--vscode-editor-background)) !important;
+}
+
+.tabulator-row.tabulator-selected:hover {
+  background: color-mix(in srgb, var(--vscode-focusBorder) 30%, var(--vscode-editor-background)) !important;
 }
 
 .tabulator-row .tabulator-cell {
@@ -117,6 +123,7 @@
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   border: none;
+  width: 100%;
   height: 100%;
   padding: 4px 8px;
   font-family: var(--vscode-font-family);
@@ -126,6 +133,13 @@
 /* Row-selection checkbox column */
 .tabulator .dbx-select-col {
   background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+}
+
+.tabulator input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--vscode-button-background, #2b8f78);
 }
 
 /* Header dropdown menu */

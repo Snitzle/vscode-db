@@ -5,7 +5,8 @@
       "name": "webview-harness",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 8378
+      "port": 8378,
+      "autoPort": true
     }
   ]
 }

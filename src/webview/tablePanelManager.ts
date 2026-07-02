@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { DbClientManager } from '../db/clientManager';
+import { promptAndExportTable } from '../export/exportService';
 import { ConnectionStore } from '../state/connectionStore';
 import { Scalar, TableQuery } from '../types';
 import { TablePanelEvent, TablePanelRequest } from './protocol';
@@ -21,7 +22,7 @@ interface ActiveTableState {
   page: number;
   pageSize: number;
   sort?: TableQuery['sort'];
-  filter?: TableQuery['filter'];
+  filters?: TableQuery['filters'];
   where?: TableQuery['where'];
 }
 
@@ -204,7 +205,7 @@ class TablePanelInstance implements vscode.Disposable {
             page: Math.max(0, message.page),
             pageSize: Math.max(1, Math.min(500, message.pageSize)),
             sort: message.sort,
-            filter: message.filter,
+            filters: message.filters,
             where: message.where,
           };
           await this.refreshActiveTable(message.requestId);
@@ -256,6 +257,15 @@ class TablePanelInstance implements vscode.Disposable {
           await openTextInEditor('sql', message.ddl);
           this.postEvent({ kind: 'info', message: 'DDL opened in editor.' }, message.requestId);
           return;
+
+        case 'exportTable': {
+          const client = await this.clientManager.getClient(this.activeTable.connectionId);
+          const outcome = await promptAndExportTable(client, this.activeTable, message.selection);
+          if (outcome) {
+            this.postEvent({ kind: 'info', message: outcome }, message.requestId);
+          }
+          return;
+        }
 
         default:
           this.assertNever(message);
@@ -319,7 +329,7 @@ class TablePanelInstance implements vscode.Disposable {
         page: this.activeTable.page,
         pageSize: this.activeTable.pageSize,
         sort: this.activeTable.sort,
-        filter: this.activeTable.filter,
+        filters: this.activeTable.filters,
         where: this.activeTable.where,
         includeCount: true,
       },
@@ -345,7 +355,7 @@ class TablePanelInstance implements vscode.Disposable {
         pageSize: result.pageSize,
         totalCount: result.totalCount,
         sort: this.activeTable.sort,
-        filter: this.activeTable.filter,
+        filters: this.activeTable.filters,
         where: this.activeTable.where,
       },
       requestId,

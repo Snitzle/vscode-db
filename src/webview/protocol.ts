@@ -29,7 +29,8 @@ export type SidebarWebviewRequest =
       objectType: 'table' | 'view';
       pageSize: number;
     } & RequestBase)
-  | ({ kind: 'selectConnectionForEdit'; connectionId: string } & RequestBase);
+  | ({ kind: 'selectConnectionForEdit'; connectionId: string } & RequestBase)
+  | ({ kind: 'exportDatabase'; connectionId: string } & RequestBase);
 
 export interface EventBase {
   requestId?: string;
@@ -51,7 +52,7 @@ export type TablePanelRequest =
       page: number;
       pageSize: number;
       sort?: SortSpec[];
-      filter?: FilterSpec;
+      filters?: FilterSpec[];
       where?: string;
     } & RequestBase)
   | ({ kind: 'insertRow'; payload: InsertRowRequest } & RequestBase)
@@ -59,7 +60,8 @@ export type TablePanelRequest =
   | ({ kind: 'updateRows'; payload: UpdateRowsRequest } & RequestBase)
   | ({ kind: 'deleteRows'; payload: DeleteRowsRequest } & RequestBase)
   | ({ kind: 'viewDdl' } & RequestBase)
-  | ({ kind: 'openDdlInEditor'; title: string; ddl: string } & RequestBase);
+  | ({ kind: 'openDdlInEditor'; title: string; ddl: string } & RequestBase)
+  | ({ kind: 'exportTable'; selection: RowData[] } & RequestBase);
 
 export type TablePanelEvent =
   | ({
@@ -71,7 +73,7 @@ export type TablePanelEvent =
       pageSize: number;
       totalCount?: number;
       sort?: SortSpec[];
-      filter?: FilterSpec;
+      filters?: FilterSpec[];
       where?: string;
     } & EventBase)
   | ({

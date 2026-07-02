@@ -64,38 +64,38 @@
     return String(a).localeCompare(String(b));
   }
 
-  function applyFilter(list, filter) {
-    if (!filter) return list;
+  function matchesFilter(record, filter) {
     const { column, operator, value } = filter;
-    return list.filter((record) => {
-      const v = record[column];
-      switch (operator) {
-        case 'eq': return String(v) === String(value);
-        case 'neq': return String(v) !== String(value);
-        case 'gt': return compareValues(v, value) > 0;
-        case 'gte': return compareValues(v, value) >= 0;
-        case 'lt': return compareValues(v, value) < 0;
-        case 'lte': return compareValues(v, value) <= 0;
-        case 'contains': return v !== null && String(v).toLowerCase().includes(String(value ?? '').toLowerCase());
-        case 'startsWith': return v !== null && String(v).toLowerCase().startsWith(String(value ?? '').toLowerCase());
-        case 'endsWith': return v !== null && String(v).toLowerCase().endsWith(String(value ?? '').toLowerCase());
-        case 'isNull': return v === null || v === undefined;
-        case 'isNotNull': return v !== null && v !== undefined;
-        default: return true;
-      }
-    });
+    const v = record[column];
+    switch (operator) {
+      case 'eq': return String(v) === String(value);
+      case 'neq': return String(v) !== String(value);
+      case 'gt': return compareValues(v, value) > 0;
+      case 'gte': return compareValues(v, value) >= 0;
+      case 'lt': return compareValues(v, value) < 0;
+      case 'lte': return compareValues(v, value) <= 0;
+      case 'contains': return v !== null && String(v).toLowerCase().includes(String(value ?? '').toLowerCase());
+      case 'startsWith': return v !== null && String(v).toLowerCase().startsWith(String(value ?? '').toLowerCase());
+      case 'endsWith': return v !== null && String(v).toLowerCase().endsWith(String(value ?? '').toLowerCase());
+      case 'isNull': return v === null || v === undefined;
+      case 'isNotNull': return v !== null && v !== undefined;
+      default: return true;
+    }
+  }
+
+  function applyFilters(list, filters) {
+    if (!Array.isArray(filters) || filters.length === 0) return list;
+    return list.filter((record) => filters.every((filter) => matchesFilter(record, filter)));
   }
 
   function tableData(query = {}) {
     const page = Math.max(0, query.page || 0);
     const pageSize = Math.max(1, query.pageSize || 50);
 
-    let filtered = rows.slice();
+    let filtered = applyFilters(rows.slice(), query.filters);
     if (query.where) {
       // The harness cannot evaluate raw SQL; it just narrates that it would.
       console.log(`[fixtures] raw WHERE ignored in harness: ${query.where}`);
-    } else {
-      filtered = applyFilter(filtered, query.filter);
     }
 
     const sort = Array.isArray(query.sort) ? query.sort : [];
@@ -118,7 +118,7 @@
       pageSize,
       totalCount: filtered.length,
       sort: sort.length ? sort : undefined,
-      filter: query.where ? undefined : query.filter,
+      filters: Array.isArray(query.filters) && query.filters.length ? query.filters : undefined,
       where: query.where,
     };
   }
@@ -174,6 +174,12 @@
 
       case 'openDdlInEditor':
         return [{ kind: 'info', message: '[harness] Would open DDL in an editor tab.' }];
+
+      case 'exportTable':
+        return [{
+          kind: 'info',
+          message: `[harness] Would export (${message.selection.length} selected row(s) offered).`,
+        }];
 
       default:
         return [{ kind: 'info', message: `[harness] Unhandled request: ${message.kind}` }];
@@ -243,6 +249,9 @@
 
       case 'pickSqliteFile':
         return [{ kind: 'sqliteFilePicked', filePath: '/tmp/sample.sqlite' }];
+
+      case 'exportDatabase':
+        return [{ kind: 'info', message: '[harness] Would export the database as a SQL dump.' }];
 
       case 'saveConnection':
         return [{ kind: 'info', message: `[harness] Connection "${message.connection.name}" saved (not persisted).` }, treeState()];

@@ -12,44 +12,57 @@ function ensureAllowedColumn(column: string, allowedColumns: Set<string>): void 
   }
 }
 
-export function buildWhereClause(
+/** One filter as a bare SQL condition (no WHERE keyword). */
+function buildCondition(
   dialect: SqlDialect,
-  filter: FilterSpec | undefined,
+  filter: FilterSpec,
   allowedColumns: Set<string>,
 ): ClauseBuildResult {
-  if (!filter) {
-    return { sql: '', params: [] };
-  }
-
   ensureAllowedColumn(filter.column, allowedColumns);
   const columnSql = quoteIdentifier(dialect, filter.column);
 
   switch (filter.operator) {
     case 'eq':
-      return { sql: `WHERE ${columnSql} = ?`, params: [filter.value ?? null] };
+      return { sql: `${columnSql} = ?`, params: [filter.value ?? null] };
     case 'neq':
-      return { sql: `WHERE ${columnSql} <> ?`, params: [filter.value ?? null] };
+      return { sql: `${columnSql} <> ?`, params: [filter.value ?? null] };
     case 'gt':
-      return { sql: `WHERE ${columnSql} > ?`, params: [filter.value ?? null] };
+      return { sql: `${columnSql} > ?`, params: [filter.value ?? null] };
     case 'gte':
-      return { sql: `WHERE ${columnSql} >= ?`, params: [filter.value ?? null] };
+      return { sql: `${columnSql} >= ?`, params: [filter.value ?? null] };
     case 'lt':
-      return { sql: `WHERE ${columnSql} < ?`, params: [filter.value ?? null] };
+      return { sql: `${columnSql} < ?`, params: [filter.value ?? null] };
     case 'lte':
-      return { sql: `WHERE ${columnSql} <= ?`, params: [filter.value ?? null] };
+      return { sql: `${columnSql} <= ?`, params: [filter.value ?? null] };
     case 'contains':
-      return { sql: `WHERE ${columnSql} LIKE ?`, params: [`%${String(filter.value ?? '')}%`] };
+      return { sql: `${columnSql} LIKE ?`, params: [`%${String(filter.value ?? '')}%`] };
     case 'startsWith':
-      return { sql: `WHERE ${columnSql} LIKE ?`, params: [`${String(filter.value ?? '')}%`] };
+      return { sql: `${columnSql} LIKE ?`, params: [`${String(filter.value ?? '')}%`] };
     case 'endsWith':
-      return { sql: `WHERE ${columnSql} LIKE ?`, params: [`%${String(filter.value ?? '')}`] };
+      return { sql: `${columnSql} LIKE ?`, params: [`%${String(filter.value ?? '')}`] };
     case 'isNull':
-      return { sql: `WHERE ${columnSql} IS NULL`, params: [] };
+      return { sql: `${columnSql} IS NULL`, params: [] };
     case 'isNotNull':
-      return { sql: `WHERE ${columnSql} IS NOT NULL`, params: [] };
+      return { sql: `${columnSql} IS NOT NULL`, params: [] };
     default:
       throw new Error(`Unsupported filter operator: ${(filter as FilterSpec).operator}`);
   }
+}
+
+export function buildWhereClause(
+  dialect: SqlDialect,
+  filters: FilterSpec[] | undefined,
+  allowedColumns: Set<string>,
+): ClauseBuildResult {
+  if (!filters || filters.length === 0) {
+    return { sql: '', params: [] };
+  }
+
+  const conditions = filters.map((filter) => buildCondition(dialect, filter, allowedColumns));
+  return {
+    sql: `WHERE ${conditions.map((condition) => condition.sql).join(' AND ')}`,
+    params: conditions.flatMap((condition) => condition.params),
+  };
 }
 
 export function buildOrderByClause(
@@ -71,19 +84,31 @@ export function buildOrderByClause(
 }
 
 /**
- * Choose between a raw user-supplied WHERE clause and the structured filter.
- * A non-empty raw `where` (SQL without the WHERE keyword) takes precedence and
- * is passed through verbatim; otherwise the structured filter is used.
+ * Combine the structured filters with a raw user-supplied WHERE clause (SQL
+ * without the WHERE keyword). All conditions are ANDed together; the raw
+ * clause is parenthesized and passed through verbatim.
  */
 export function buildFilterClause(
   dialect: SqlDialect,
-  options: { where?: string; filter?: FilterSpec },
+  options: { where?: string; filters?: FilterSpec[] },
   allowedColumns: Set<string>,
 ): ClauseBuildResult {
+  const conditions = (options.filters ?? []).map((filter) =>
+    buildCondition(dialect, filter, allowedColumns),
+  );
+
+  const parts = conditions.map((condition) => condition.sql);
   const raw = typeof options.where === 'string' ? options.where.trim() : '';
   if (raw) {
-    return { sql: `WHERE ${raw}`, params: [] };
+    parts.push(`(${raw})`);
   }
 
-  return buildWhereClause(dialect, options.filter, allowedColumns);
+  if (parts.length === 0) {
+    return { sql: '', params: [] };
+  }
+
+  return {
+    sql: `WHERE ${parts.join(' AND ')}`,
+    params: conditions.flatMap((condition) => condition.params),
+  };
 }

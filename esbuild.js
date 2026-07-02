@@ -12,7 +12,8 @@ const serve = process.argv.includes('--serve');
 const watch = process.argv.includes('--watch') || serve;
 const production = process.argv.includes('--production');
 
-const SERVE_PORT = 8378;
+// Overridable so multiple harness instances can run side by side.
+const SERVE_PORT = Number(process.env.PORT) || 8378;
 
 // Emits the "[watch] build started/finished" lines that the
 // connor4312.esbuild-problem-matchers $esbuild-watch matcher parses, collapsed

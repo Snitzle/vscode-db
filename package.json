@@ -25,21 +25,16 @@
     "views": {
       "dbExplorer": [
         {
+          "type": "webview",
           "id": "dbExplorer.home",
           "name": "Database Explorer"
         }
       ]
     },
-    "viewsWelcome": [
-      {
-        "view": "dbExplorer.home",
-        "contents": "Browse and edit your databases in a dedicated editor tab.\n[Open Database Explorer](command:dbExplorer.open)\n[Add Connection](command:dbExplorer.addConnection)"
-      }
-    ],
     "commands": [
       {
         "command": "dbExplorer.open",
-        "title": "DB Explorer: Open",
+        "title": "DB Explorer: Focus",
         "icon": "$(window)"
       },
       {
@@ -55,11 +50,6 @@
     ],
     "menus": {
       "view/title": [
-        {
-          "command": "dbExplorer.open",
-          "when": "view == dbExplorer.home",
-          "group": "navigation@0"
-        },
         {
           "command": "dbExplorer.addConnection",
           "when": "view == dbExplorer.home",

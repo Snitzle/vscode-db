@@ -11,7 +11,7 @@ The driving insight: **one great data grid is the backbone of four of the five w
 ## Locked decisions
 
 - **Data grid:** [Tabulator](https://tabulator.info/), bundled via a new **esbuild** step for webview assets.
-- **Sidebar:** migrate to a **native VS Code `TreeDataProvider`** (replaces the webview tree). Connection add/edit moves to a small webview or multi-step QuickPick.
+- **Sidebar:** the existing webview explorer registered as a **`WebviewViewProvider`** in the activity-bar container (chosen 2026-07-02 over the earlier native-`TreeDataProvider` plan — the polished webview tree is kept, with its own state persistence).
 - **SQL editor:** **native `.sql` editor + Run** command, with a status-bar active-connection indicator; results render in the shared grid.
 
 ## Architecture principles
@@ -20,12 +20,14 @@ The driving insight: **one great data grid is the backbone of four of the five w
 - **`executeRaw()` linchpin:** add `executeRaw(sql): Promise<RawResult[]>` to `DatabaseClient` ([src/db/client.ts](src/db/client.ts)) + both clients. Unlocks Run Queries, copy-as-SQL, EXPLAIN, and DDL execution.
 - **Native theming:** VS Code theme tokens + codicons throughout; consistent toolbars; explicit loading / empty / error states.
 
-## UI shell ✅ (implemented 2026-06-23)
-The Database Explorer opens as a **main-window editor tab**, not a sidebar view. The activity-bar icon is a lightweight launcher (`viewsWelcome`) whose button opens/reveals the tab, and the view auto-opens it when shown. Tables open as their own grid tabs beside the explorer. See `src/webview/explorerPanel.ts` and the `dbExplorer.open` command.
+## UI shell ✅ (implemented 2026-06-23, superseded 2026-07-02)
+~~The Database Explorer opens as a **main-window editor tab**~~ → the explorer now lives **in the sidebar** as a `WebviewViewProvider` (`dbExplorer.home`, `retainContextWhenHidden`); tables still open as their own grid tabs. The launcher tree + `viewsWelcome` hack is gone; `dbExplorer.open` focuses the view. The webview persists expanded schemas, selection, and the tree filter via `vscode.setState`/`getState`, so the tree no longer resets when the view is hidden or the window reloads. See `src/webview/explorerPanel.ts` (`ExplorerViewProvider`).
 
 **Explorer polish ✅ (2026-07-01):** constrained-width column; compact tree rows with `@vscode/codicons` icons (table / view / schema / connection), hover + selection states, per-schema counts, and an in-tree filter box; connection status as a dot; Edit/Remove as icon buttons; Add/Edit connection moved into a modal dialog. `media/main.js` is now bundled by esbuild (for the codicon CSS import) → `dist/main.js` + `dist/main.css` (codicon font inlined; `font-src data:` allows it).
 
 **Grid density pass ✅ (2026-07-01):** table view rebuilt to a single compact toolbar (icon buttons; right-sized page-size select; find box), the structured filter collapsed behind a Filter toggle + active-filter chip, Apply/Cancel replaced by a contextual pending-changes bar, a collapsible DDL panel, ~28px Tabulator rows, aggregate strip that excludes PK / auto-increment columns, sentence-case section headers, and codicons bundled into the grid webview (`dist/tablePanel.css`).
+
+**Grid readability + stability pass ✅ (2026-07-02):** form-control CSS scoped away from the grid (`:where(:not(.tabulator *))`) so Tabulator's row-selection checkboxes and inline editors stop inheriting 32px full-width input chrome; row hover/selection changed from opaque list tokens to translucent `focusBorder` tints (text stays theme-colored in every theme, pending-edit highlight stays visible); the grid takes all remaining viewport height via flex instead of `calc(100vh - 360px)`; the grid is only rebuilt when columns or sort change — plain data refreshes go through `replaceData()`, preserving column widths/order/visibility and scroll; Next paging disabled on the last page; find-in-page survives refreshes.
 
 ## Stage 0 — UX foundation ✅ (implemented 2026-06-23)
 - [x] esbuild build for webview assets (`media/tablePanel.js` → `dist/`), wired into npm scripts + the F5 preLaunchTask (`esbuild.js`).
@@ -40,7 +42,8 @@ The Database Explorer opens as a **main-window editor tab**, not a sidebar view.
 - [x] **Aggregate strip** under the grid: count + sum/avg/min/max per numeric column, over the selection (or the loaded page).
 - [x] **Find in page**: client-side filter across the loaded rows.
 - [x] **Multi-column sort** — shift-click headers; `TableQuery.sort` is now a `SortSpec[]`, `buildOrderByClause` joins the terms, and the header shows priority badges.
-- [x] **Raw `WHERE` filter bar** — a WHERE field in the filter popover that overrides the column filter; `TableQuery.where` + new `buildFilterClause` thread it through both clients including the count query.
+- [x] **Raw `WHERE` filter bar** — a WHERE field in the filter popover; `TableQuery.where` + `buildFilterClause` thread it through both clients including the count query.
+- [x] **Multiple filters (2026-07-02)** — `TableQuery.filters: FilterSpec[]` ANDed together *and* with the raw WHERE; chip-per-filter UI with individual remove; "Filter by this value" appends (drill-down) instead of replacing.
 - [ ] Jump-to-page control; image / hex-blob value viewers (minor; deferred).
 
 ## Stage 2 — Change values
@@ -51,12 +54,13 @@ The Database Explorer opens as a **main-window editor tab**, not a sidebar view.
 - [ ] Transaction-mode toggle (auto / manual commit).
 - Touches: `tablePanelManager.ts` mutation handlers, client insert/update/delete, `keyStrategy.ts`.
 
-## Stage 3 — Export
-- [ ] Scope: selection / current page / whole table.
-- [ ] Formats: CSV, TSV, JSON, SQL `INSERT`s, Markdown.
-- [ ] Destinations: file (save dialog) + clipboard; "Copy as …" context actions.
-- [ ] Options: headers, delimiter, NULL token, include DDL, encoding.
-- Touches: new `src/export/*` extractors, `valueCodec.ts`, `protocol.ts`.
+## Stage 3 — Export (core ✅ 2026-07-02)
+- [x] Scope: selection / current page / whole table (honours active filters + sort).
+- [x] Formats: CSV, TSV, JSON, SQL `INSERT`s, Markdown (`src/export/extractors.ts`, unit-tested).
+- [x] Destinations: file (save dialog) + clipboard, via a QuickPick flow from the table panel's Export button (`src/export/exportService.ts`).
+- [x] **Whole-database SQL dump** (DDL + INSERTs, FK guards, views last) from the explorer's per-connection export button.
+- [ ] "Copy as …" cell/row context actions.
+- [ ] Options: custom delimiter, NULL token, encoding.
 
 ## Stage 4 — Run queries
 - [ ] Command: **New SQL Console** → untitled `.sql` bound to a connection; status-bar connection picker.
