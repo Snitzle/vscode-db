@@ -73,6 +73,15 @@ The Database Explorer opens as a **main-window editor tab**, not a sidebar view.
 - [ ] Batched insert in a transaction with progress.
 - Touches: new `src/import/*`, clients (batch insert), webview mapping UI.
 
+## Dev tooling ✅ (2026-07-02, branch chore/dev-tooling)
+Iteration-speed pass:
+- **esbuild bundles the extension host** (`dist/extension.js`, deps external); `tsc --noEmit` is type-check only; `npm run watch` runs both watchers (npm-run-all).
+- **Watch-based F5**: background `npm: watch` task (`$esbuild-watch`/`$tsc-watch` matchers, requires `connor4312.esbuild-problem-matchers`, recommended in `.vscode/extensions.json`); one-shot `npm: build` kept as fallback if F5 ever hangs waiting on the matcher.
+- **Browser harness**: `npm run dev` serves `dev/table.html` + `dev/explorer.html` (port 8378) with live reload; `media/vscodeApi.js` shims `acquireVsCodeApi`; `dev/fixtures.js` speaks the real protocol with a mutable fixture table. Caveat: the browser is more permissive than a webview (no strict CSP; `confirm()` works in-browser but NOT in webviews) — re-verify risky changes in the Extension Development Host.
+- **In-host auto-reload**: in development mode the extension watches `dist/` (fs.watch, debounced) and re-renders open webview panels on rebuild.
+- **Tests via tsx**: `npm test` / `npm run test:watch` run the TS test files directly — no compile step.
+- **Packaging fixed**: `main` → `dist/extension.js` and `.vscodeignore` now ships `dist/` + runtime `media/` assets (previously the compiled output was excluded, so a `.vsix` shipped no code). Note: the `.vsix` is platform-specific (sqlite3 prebuilt binary).
+
 ## Later — full DataGrip parity
 PostgreSQL / MariaDB / MSSQL clients · context-aware autocomplete (`CompletionItemProvider`) · richer schema tree (indexes / FKs / procedures / functions / triggers / sequences / users) · DDL execution + visual table editor · FK navigation in grid · ER diagrams · EXPLAIN viewer · environment color-coding & safety guards · schema/data compare · AI NL→SQL · SSH tunnels.
 

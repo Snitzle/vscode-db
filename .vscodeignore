@@ -1,6 +1,20 @@
-out/**
-src/**
-test/**
+# Ship: dist/ (bundled extension + webview assets), media/main.css +
+# media/database.svg (loaded at runtime), and production node_modules
+# (sqlite3/mysql2/uuid stay external to the bundle).
 .vscode/**
-*.ts
+.vscode-test/**
+.claude/**
+.github/**
+src/**
+out/**
+test/**
+dev/**
+media/main.js
+media/tablePanel.js
+media/vscodeApi.js
+media/tabulator-vscode.css
+esbuild.js
+tsconfig.json
+ROADMAP.md
+.gitignore
 **/*.map
