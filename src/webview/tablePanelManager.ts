@@ -62,6 +62,13 @@ export class TablePanelManager implements vscode.Disposable {
     await Promise.allSettled(refreshes);
   }
 
+  /** Dev-only: re-render all open panels so rebuilt bundles are picked up. */
+  reloadWebviews(): void {
+    for (const panel of this.panels.values()) {
+      panel.reloadWebview();
+    }
+  }
+
   async refreshConnection(connectionId: string): Promise<void> {
     const refreshes = [...this.panels.values()]
       .filter((panel) => panel.connectionId === connectionId)
@@ -130,12 +137,7 @@ class TablePanelInstance implements vscode.Disposable {
     );
 
     this.panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'database.svg');
-    this.panel.webview.html = renderWebviewHtml(this.context, this.panel.webview, {
-      scriptFile: 'dist/tablePanel.js',
-      styleFiles: ['media/main.css', 'dist/tablePanel.css'],
-      title: this.buildTitle(),
-      surface: 'panel',
-    });
+    this.panel.webview.html = this.buildHtml();
 
     this.disposables.push(
       this.panel.webview.onDidReceiveMessage(async (message: TablePanelRequest) => {
@@ -170,6 +172,22 @@ class TablePanelInstance implements vscode.Disposable {
     if (!this.disposed) {
       this.panel.dispose();
     }
+  }
+
+  /** Dev-only: reload the webview HTML; the 'ready' round-trip repopulates it. */
+  reloadWebview(): void {
+    if (!this.disposed) {
+      this.panel.webview.html = this.buildHtml();
+    }
+  }
+
+  private buildHtml(): string {
+    return renderWebviewHtml(this.context, this.panel.webview, {
+      scriptFile: 'dist/tablePanel.js',
+      styleFiles: ['media/main.css', 'dist/tablePanel.css'],
+      title: this.buildTitle(),
+      surface: 'panel',
+    });
   }
 
   private async handleMessage(message: TablePanelRequest): Promise<void> {

@@ -44,12 +44,7 @@ export class ExplorerPanel implements vscode.Disposable {
     );
 
     panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'database.svg');
-    panel.webview.html = renderWebviewHtml(this.context, panel.webview, {
-      scriptFile: 'dist/main.js',
-      styleFiles: ['media/main.css', 'dist/main.css'],
-      title: 'Database Explorer',
-      surface: 'panel',
-    });
+    panel.webview.html = this.buildHtml(panel.webview);
 
     this.panel = panel;
 
@@ -73,6 +68,22 @@ export class ExplorerPanel implements vscode.Disposable {
     if (this.panel) {
       await this.postState();
     }
+  }
+
+  /** Dev-only: re-render the webview HTML so a rebuilt bundle is picked up. */
+  reloadWebview(): void {
+    if (this.panel) {
+      this.panel.webview.html = this.buildHtml(this.panel.webview);
+    }
+  }
+
+  private buildHtml(webview: vscode.Webview): string {
+    return renderWebviewHtml(this.context, webview, {
+      scriptFile: 'dist/main.js',
+      styleFiles: ['media/main.css', 'dist/main.css'],
+      title: 'Database Explorer',
+      surface: 'panel',
+    });
   }
 
   requestAddConnection(): void {

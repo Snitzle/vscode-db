@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { DbClientManager } from './db/clientManager';
 import { ConnectionStore } from './state/connectionStore';
@@ -36,6 +38,34 @@ export function activate(context: vscode.ExtensionContext): void {
       explorer.requestAddConnection();
     }),
   );
+
+  // Dev loop: when the esbuild watcher rewrites dist/, reload any open webview
+  // panels so the new bundles are picked up without restarting the host.
+  // Note: fs.watch, not vscode.workspace.createFileSystemWatcher — the latter
+  // watches the Extension Development Host's *workspace*, not this extension's
+  // install directory.
+  if (context.extensionMode === vscode.ExtensionMode.Development) {
+    try {
+      const distDir = path.join(context.extensionPath, 'dist');
+      let debounce: NodeJS.Timeout | undefined;
+      const watcher = fs.watch(distDir, () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(() => {
+          explorer.reloadWebview();
+          tablePanels.reloadWebviews();
+        }, 300);
+      });
+
+      context.subscriptions.push(
+        new vscode.Disposable(() => {
+          clearTimeout(debounce);
+          watcher.close();
+        }),
+      );
+    } catch {
+      // dist/ may not exist before the first build; skip auto-reload silently.
+    }
+  }
 
   context.subscriptions.push(
     new vscode.Disposable(() => {
