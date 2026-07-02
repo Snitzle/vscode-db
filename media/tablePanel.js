@@ -2,9 +2,10 @@ import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import '@vscode/codicons/dist/codicon.css';
 import 'tabulator-tables/dist/css/tabulator.min.css';
 import './tabulator-vscode.css';
+import { getVsCodeApi } from './vscodeApi.js';
 
 (() => {
-  const vscode = acquireVsCodeApi();
+  const vscode = getVsCodeApi();
 
   const state = {
     activeTable: null,

@@ -1,7 +1,8 @@
 import '@vscode/codicons/dist/codicon.css';
+import { getVsCodeApi } from './vscodeApi.js';
 
 (() => {
-  const vscode = acquireVsCodeApi();
+  const vscode = getVsCodeApi();
 
   const state = {
     connections: [],

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Harness · table panel</title>
+  <link rel="stylesheet" href="/dev/vscode-dark.css">
+  <link rel="stylesheet" href="/media/main.css">
+  <link rel="stylesheet" href="/dist/tablePanel.css">
+</head>
+<body data-surface="panel">
+  <div id="app"></div>
+  <script>window.__dbxSurface = 'table';</script>
+  <script src="/dev/fixtures.js"></script>
+  <script src="/dist/tablePanel.js"></script>
+  <script>
+    // esbuild --serve live reload (SSE endpoint provided automatically).
+    new EventSource('/esbuild').addEventListener('change', () => location.reload());
+  </script>
+</body>
+</html>
