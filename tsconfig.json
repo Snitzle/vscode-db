@@ -6,9 +6,7 @@
       "ES2022",
       "DOM"
     ],
-    "outDir": "out",
-    "rootDir": ".",
-    "sourceMap": true,
+    "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
