@@ -213,6 +213,17 @@ export class ExplorerPanel implements vscode.Disposable {
   }
 
   private async removeConnection(connectionId: string, requestId?: string): Promise<void> {
+    const connection = await this.connectionStore.getConnection(connectionId);
+    const name = connection?.name ?? 'this connection';
+    const choice = await vscode.window.showWarningMessage(
+      `Remove connection "${name}"?`,
+      { modal: true },
+      'Remove',
+    );
+    if (choice !== 'Remove') {
+      return;
+    }
+
     await this.connectionStore.removeConnection(connectionId);
     await this.clientManager.invalidate(connectionId);
     this.tablePanels.closeConnectionPanels(connectionId);

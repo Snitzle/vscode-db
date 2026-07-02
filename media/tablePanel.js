@@ -971,10 +971,8 @@ import { getVsCodeApi } from './vscodeApi.js';
       return;
     }
 
-    if (!confirm(`Delete ${keys.length} selected row(s)?`)) {
-      return;
-    }
-
+    // Confirmation happens host-side via a native modal — webview confirm() is
+    // blocked in the VS Code webview sandbox.
     sendRequest('deleteRows', {
       payload: {
         schema: state.activeTable.schema,

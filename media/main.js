@@ -396,9 +396,8 @@ import { getVsCodeApi } from './vscodeApi.js';
       removeBtn.setAttribute('aria-label', 'Remove connection');
       removeBtn.innerHTML = '<i class="codicon codicon-trash" aria-hidden="true"></i>';
       removeBtn.addEventListener('click', () => {
-        if (!confirm(`Remove connection "${connection.name}"?`)) {
-          return;
-        }
+        // Confirmation happens host-side via a native modal — webview confirm()
+        // is blocked in the VS Code webview sandbox.
         sendRequest('removeConnection', { connectionId: connection.connectionId });
       });
 

@@ -231,6 +231,16 @@ class TablePanelInstance implements vscode.Disposable {
         }
 
         case 'deleteRows': {
+          const count = message.payload.keys.length;
+          const choice = await vscode.window.showWarningMessage(
+            `Delete ${count} row${count === 1 ? '' : 's'} from ${this.activeTable.schema}.${this.activeTable.table}? This cannot be undone.`,
+            { modal: true },
+            'Delete',
+          );
+          if (choice !== 'Delete') {
+            return;
+          }
+
           const client = await this.clientManager.getClient(this.activeTable.connectionId);
           await client.deleteRows(message.payload);
           this.postEvent({ kind: 'mutationApplied', message: 'Rows deleted.' }, message.requestId);
