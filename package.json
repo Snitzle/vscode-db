@@ -1,6 +1,6 @@
 {
-  "name": "vscode-db-browser",
-  "displayName": "DB Sidebar Explorer",
+  "name": "openvsdb",
+  "displayName": "OpenVSDB",
   "description": "Browse and edit MySQL and SQLite databases from a VS Code sidebar tree and editor tabs.",
   "version": "0.0.1",
   "publisher": "local",
@@ -17,7 +17,7 @@
       "activitybar": [
         {
           "id": "dbExplorer",
-          "title": "Databases",
+          "title": "OpenVSDB",
           "icon": "media/database.svg"
         }
       ]
@@ -34,17 +34,17 @@
     "commands": [
       {
         "command": "dbExplorer.open",
-        "title": "DB Explorer: Focus",
+        "title": "OpenVSDB: Focus",
         "icon": "$(window)"
       },
       {
         "command": "dbExplorer.addConnection",
-        "title": "DB Explorer: Add Connection",
+        "title": "OpenVSDB: Add Connection",
         "icon": "$(add)"
       },
       {
         "command": "dbExplorer.refresh",
-        "title": "DB Explorer: Refresh",
+        "title": "OpenVSDB: Refresh",
         "icon": "$(refresh)"
       }
     ],

@@ -1,4 +1,4 @@
-# DB Sidebar Explorer
+# OpenVSDB
 
 A free VS Code extension to browse and edit MySQL and SQLite databases from an Activity Bar sidebar tree and editor tabs.
 
@@ -15,7 +15,7 @@ A free VS Code extension to browse and edit MySQL and SQLite databases from an A
 
 ## Architecture (brief)
 
-- Sidebar Webview (`dbExplorer.sidebar`) handles connection management and navigation.
+- Sidebar Webview (`dbExplorer.home`) handles connection management and navigation.
 - Table/view content opens in dedicated webview editor tabs in the main workbench area.
 - Data flow:
   1. Webview requests tree data.
@@ -32,7 +32,7 @@ A free VS Code extension to browse and edit MySQL and SQLite databases from an A
 
 ```bash
 npm install
-npm run compile
+npm run build
 ```
 
 Then press `F5` in VS Code to launch the Extension Development Host.

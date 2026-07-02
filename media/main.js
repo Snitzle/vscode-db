@@ -121,13 +121,6 @@ import { getVsCodeApi } from './vscodeApi.js';
       </div>
 
       <section class="panel">
-        <div class="panelHeader">
-          <h2>Connections</h2>
-          <div class="inlineButtons">
-            <button id="btnAddConnection">Add connection</button>
-            <button id="btnRefreshTree" class="secondary">Refresh</button>
-          </div>
-        </div>
         <div class="treeFilter">
           <i class="codicon codicon-search" aria-hidden="true"></i>
           <input id="objectFilter" placeholder="Filter tables and views" />
@@ -165,16 +158,14 @@ import { getVsCodeApi } from './vscodeApi.js';
     mysqlClearPassword: document.getElementById('mysqlClearPassword'),
     connectionTree: document.getElementById('connectionTree'),
     objectFilter: document.getElementById('objectFilter'),
-    btnAddConnection: document.getElementById('btnAddConnection'),
-    btnRefreshTree: document.getElementById('btnRefreshTree'),
     statusBar: document.getElementById('statusBar'),
   };
 
+  // Add-connection and Refresh live in the view's title bar (contributed via
+  // package.json menus), so the webview no longer duplicates them here.
   elements.btnCancelConnectionForm.addEventListener('click', () => hideConnectionForm());
   elements.connectionType.addEventListener('change', updateConnectionTypeFields);
   elements.btnBrowseSqlite.addEventListener('click', () => sendRequest('pickSqliteFile'));
-  elements.btnAddConnection.addEventListener('click', () => openConnectionForm('add'));
-  elements.btnRefreshTree.addEventListener('click', () => sendRequest('refreshTree'));
   elements.objectFilter.value = state.filterTerm;
   elements.objectFilter.addEventListener('input', () => {
     state.filterTerm = elements.objectFilter.value;
@@ -194,6 +185,15 @@ import { getVsCodeApi } from './vscodeApi.js';
 
   window.addEventListener('message', (event) => {
     handleEvent(event.data);
+  });
+
+  // Any click that isn't on an open kebab menu closes it (menu clicks call
+  // stopPropagation), as does Escape.
+  document.addEventListener('click', () => closeAllKebabMenus());
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeAllKebabMenus();
+    }
   });
 
   sendRequest('ready');
@@ -367,7 +367,7 @@ import { getVsCodeApi } from './vscodeApi.js';
     if (state.tree.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'muted';
-      empty.textContent = 'No connections yet. Click "Add connection" to create one.';
+      empty.textContent = 'No connections yet. Use the + button in the view title to add one.';
       tree.appendChild(empty);
       return;
     }
@@ -399,40 +399,29 @@ import { getVsCodeApi } from './vscodeApi.js';
       const actions = document.createElement('div');
       actions.className = 'inlineButtons';
 
+      const menuItems = [];
       if (connection.status === 'connected') {
-        const exportBtn = document.createElement('button');
-        exportBtn.className = 'iconBtn';
-        exportBtn.title = 'Export database (SQL dump)';
-        exportBtn.setAttribute('aria-label', 'Export database');
-        exportBtn.innerHTML = '<i class="codicon codicon-desktop-download" aria-hidden="true"></i>';
-        exportBtn.addEventListener('click', () => {
-          sendRequest('exportDatabase', { connectionId: connection.connectionId });
+        menuItems.push({
+          label: 'Export database',
+          icon: 'codicon-desktop-download',
+          onSelect: () => sendRequest('exportDatabase', { connectionId: connection.connectionId }),
         });
-        actions.appendChild(exportBtn);
       }
-
-      const editBtn = document.createElement('button');
-      editBtn.className = 'iconBtn';
-      editBtn.title = 'Edit connection';
-      editBtn.setAttribute('aria-label', 'Edit connection');
-      editBtn.innerHTML = '<i class="codicon codicon-edit" aria-hidden="true"></i>';
-      editBtn.addEventListener('click', () => {
-        sendRequest('selectConnectionForEdit', { connectionId: connection.connectionId });
+      menuItems.push({
+        label: 'Edit connection',
+        icon: 'codicon-edit',
+        onSelect: () => sendRequest('selectConnectionForEdit', { connectionId: connection.connectionId }),
       });
-
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'iconBtn danger';
-      removeBtn.title = 'Remove connection';
-      removeBtn.setAttribute('aria-label', 'Remove connection');
-      removeBtn.innerHTML = '<i class="codicon codicon-trash" aria-hidden="true"></i>';
-      removeBtn.addEventListener('click', () => {
+      menuItems.push({
+        label: 'Remove connection',
+        icon: 'codicon-trash',
+        danger: true,
         // Confirmation happens host-side via a native modal — webview confirm()
         // is blocked in the VS Code webview sandbox.
-        sendRequest('removeConnection', { connectionId: connection.connectionId });
+        onSelect: () => sendRequest('removeConnection', { connectionId: connection.connectionId }),
       });
 
-      actions.appendChild(editBtn);
-      actions.appendChild(removeBtn);
+      actions.appendChild(buildKebabMenu(menuItems));
       header.appendChild(actions);
 
       block.appendChild(header);
@@ -538,6 +527,60 @@ import { getVsCodeApi } from './vscodeApi.js';
       }
 
       tree.appendChild(block);
+    }
+  }
+
+  function buildKebabMenu(items) {
+    const wrap = document.createElement('div');
+    wrap.className = 'kebabMenu';
+
+    const trigger = document.createElement('button');
+    trigger.className = 'iconBtn';
+    trigger.title = 'More actions';
+    trigger.setAttribute('aria-label', 'More actions');
+    trigger.setAttribute('aria-haspopup', 'true');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.innerHTML = '<i class="codicon codicon-ellipsis" aria-hidden="true"></i>';
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'kebabDropdown';
+    dropdown.hidden = true;
+
+    for (const item of items) {
+      const entry = document.createElement('button');
+      entry.className = item.danger ? 'kebabItem danger' : 'kebabItem';
+      entry.innerHTML =
+        `<i class="codicon ${item.icon}" aria-hidden="true"></i>` +
+        `<span>${escapeHtml(item.label)}</span>`;
+      entry.addEventListener('click', (event) => {
+        event.stopPropagation();
+        closeAllKebabMenus();
+        item.onSelect();
+      });
+      dropdown.appendChild(entry);
+    }
+
+    trigger.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const willOpen = dropdown.hidden;
+      closeAllKebabMenus();
+      if (willOpen) {
+        dropdown.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
+      }
+    });
+
+    wrap.appendChild(trigger);
+    wrap.appendChild(dropdown);
+    return wrap;
+  }
+
+  function closeAllKebabMenus() {
+    for (const dropdown of document.querySelectorAll('.kebabDropdown')) {
+      dropdown.hidden = true;
+    }
+    for (const trigger of document.querySelectorAll('.kebabMenu .iconBtn')) {
+      trigger.setAttribute('aria-expanded', 'false');
     }
   }
 

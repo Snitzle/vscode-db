@@ -397,7 +397,76 @@ body[data-surface='sidebar'] .modalContent {
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   background: color-mix(in srgb, var(--vscode-editorWidget-background) 90%, transparent);
+  /* Not clipped: the per-connection kebab dropdown overflows the card. */
+  overflow: visible;
+}
+
+.kebabMenu {
+  position: relative;
+  display: inline-flex;
+}
+
+.kebabDropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  /* Anchored to the trigger's right edge and capped to the viewport so it can
+     never run off-screen in the narrow sidebar. */
+  right: 0;
+  z-index: 20;
+  min-width: 150px;
+  max-width: calc(100vw - 2 * var(--space-3));
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-menu-border, var(--panel-border));
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.kebabItem {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  border: none;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.kebabItem span {
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kebabItem:hover {
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
+}
+
+/* Overrides the global `button.danger` solid-red fill: a menu item reads as a
+   normal row and only turns red on hover. */
+.kebabItem.danger {
+  background: transparent;
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+}
+
+.kebabItem.danger:hover {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
+}
+
+.kebabItem .codicon {
+  font-size: 15px;
+  flex: 0 0 auto;
 }
 
 .treeConnectionHeader {
@@ -794,15 +863,6 @@ body[data-surface='panel'] .ddl {
 @media (max-width: 800px) {
   .formGrid {
     grid-template-columns: 1fr;
-  }
-
-  .treeConnectionHeader {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .treeConnectionHeader .inlineButtons {
-    justify-self: stretch;
   }
 
   .controlsRow > label {
