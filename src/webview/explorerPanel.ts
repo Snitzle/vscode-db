@@ -127,6 +127,12 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider, vscode.
           return;
         }
 
+        case 'pickCertFile': {
+          const filePath = await this.pickCertFile();
+          this.postEvent({ kind: 'certFilePicked', target: message.target, filePath }, message.requestId);
+          return;
+        }
+
         case 'selectConnectionForEdit':
           await this.selectConnectionForEdit(message.connectionId, message.requestId);
           return;
@@ -339,6 +345,19 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider, vscode.
       openLabel: 'Select SQLite Database',
       filters: {
         'SQLite Database': ['db', 'sqlite', 'sqlite3'],
+        'All Files': ['*'],
+      },
+    });
+
+    return selected?.[0]?.fsPath;
+  }
+
+  private async pickCertFile(): Promise<string | undefined> {
+    const selected = await vscode.window.showOpenDialog({
+      canSelectMany: false,
+      openLabel: 'Select Certificate',
+      filters: {
+        'Certificates & Keys': ['pem', 'crt', 'cert', 'key'],
         'All Files': ['*'],
       },
     });

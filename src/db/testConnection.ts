@@ -1,8 +1,9 @@
 import * as mysql from 'mysql2/promise';
 import { RowDataPacket } from 'mysql2';
-import * as sqlite3 from 'sqlite3';
+import type * as sqlite3 from 'sqlite3';
 import { ConnectionInput } from '../types';
 import { buildMySqlConnectionOptions, MySqlTarget } from './mysqlClient';
+import { loadSqlite3 } from './sqlite3Loader';
 
 export interface TestConnectionResult {
   ok: boolean;
@@ -58,8 +59,9 @@ async function testSqlite(filePath: string): Promise<string> {
     throw new Error('SQLite database file is required.');
   }
 
+  const sqlite = loadSqlite3();
   const db = await new Promise<sqlite3.Database>((resolve, reject) => {
-    const database = new sqlite3.Database(filePath, sqlite3.OPEN_READONLY, (error) => {
+    const database = new sqlite.Database(filePath, sqlite.OPEN_READONLY, (error) => {
       if (error) {
         reject(error);
         return;

@@ -22,6 +22,7 @@ export type SidebarWebviewRequest =
   | ({ kind: 'saveConnection'; mode: 'add' | 'edit'; connection: ConnectionInput } & RequestBase)
   | ({ kind: 'removeConnection'; connectionId: string } & RequestBase)
   | ({ kind: 'pickSqliteFile' } & RequestBase)
+  | ({ kind: 'pickCertFile'; target: 'caPath' | 'certPath' | 'keyPath' } & RequestBase)
   | ({
       kind: 'openTable';
       connectionId: string;
@@ -43,6 +44,7 @@ export interface EventBase {
 export type SidebarExtensionEvent =
   | ({ kind: 'state'; tree: ConnectionTreeNode[]; connections: ConnectionMeta[] } & EventBase)
   | ({ kind: 'sqliteFilePicked'; filePath?: string } & EventBase)
+  | ({ kind: 'certFilePicked'; target: 'caPath' | 'certPath' | 'keyPath'; filePath?: string } & EventBase)
   | ({ kind: 'connectionSelectedForEdit'; connection: ConnectionMeta } & EventBase)
   | ({ kind: 'triggerAddConnection' } & EventBase)
   | ({ kind: 'testConnectionResult'; ok: boolean; message: string } & EventBase)
