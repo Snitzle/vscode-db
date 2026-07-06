@@ -250,6 +250,9 @@
       case 'pickSqliteFile':
         return [{ kind: 'sqliteFilePicked', filePath: '/tmp/sample.sqlite' }];
 
+      case 'pickCertFile':
+        return [{ kind: 'certFilePicked', target: message.target, filePath: `/tmp/sample.${message.target}.pem` }];
+
       case 'exportDatabase':
         return [{ kind: 'info', message: '[harness] Would export the database as a SQL dump.' }];
 

@@ -31,6 +31,7 @@ The maintainer migrated from IntelliJ/DataGrip and most misses its database inte
 
 ## Later
 
+- WSL support: platform-specific VSIX packaging (sqlite3 native binding), explicit `extensionKind: ["workspace"]`, lazy sqlite3 load, Browse… for path fields — full hand-off plan in `WSL-SUPPORT-PLAN.md`.
 - Query panel v2: query history (globalState), export/copy of result grids, autocomplete, EXPLAIN viewer, native `.sql` editor + status-bar connection binding.
 - Change values v2: type-aware inline editors (date/boolean/NULL), DML preview before submit, transaction-mode toggle.
 - Import v2: CSV/TSV/JSON → table with column-mapping UI and batched transactional inserts.

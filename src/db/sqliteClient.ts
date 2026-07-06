@@ -1,4 +1,5 @@
-import * as sqlite3 from 'sqlite3';
+import type * as sqlite3 from 'sqlite3';
+import { loadSqlite3 } from './sqlite3Loader';
 import {
   ColumnInfo,
   DbObject,
@@ -66,8 +67,9 @@ export class SqliteClient implements DatabaseClient {
   }
 
   static async create(connection: SqliteConnectionMeta): Promise<SqliteClient> {
+    const sqlite = loadSqlite3();
     const database = await new Promise<sqlite3.Database>((resolve, reject) => {
-      const db = new sqlite3.Database(connection.filePath, sqlite3.OPEN_READWRITE, (error) => {
+      const db = new sqlite.Database(connection.filePath, sqlite.OPEN_READWRITE, (error) => {
         if (error) {
           reject(error);
           return;

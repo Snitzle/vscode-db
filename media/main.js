@@ -99,13 +99,22 @@ import { getVsCodeApi } from './vscodeApi.js';
                   <input id="mysqlSslRejectUnauthorized" type="checkbox" checked /> Reject Unauthorized
                 </label>
                 <label>CA path
-                  <input id="mysqlSslCaPath" placeholder="/path/to/ca.pem" />
+                  <div class="inlineInput">
+                    <input id="mysqlSslCaPath" placeholder="/path/to/ca.pem" />
+                    <button type="button" id="btnBrowseSslCa" class="secondary">Browse</button>
+                  </div>
                 </label>
                 <label>Cert path
-                  <input id="mysqlSslCertPath" placeholder="/path/to/client-cert.pem" />
+                  <div class="inlineInput">
+                    <input id="mysqlSslCertPath" placeholder="/path/to/client-cert.pem" />
+                    <button type="button" id="btnBrowseSslCert" class="secondary">Browse</button>
+                  </div>
                 </label>
                 <label>Key path
-                  <input id="mysqlSslKeyPath" placeholder="/path/to/client-key.pem" />
+                  <div class="inlineInput">
+                    <input id="mysqlSslKeyPath" placeholder="/path/to/client-key.pem" />
+                    <button type="button" id="btnBrowseSslKey" class="secondary">Browse</button>
+                  </div>
                 </label>
                 <label>Server Name
                   <input id="mysqlSslServerName" placeholder="db.example.com" />
@@ -161,6 +170,9 @@ import { getVsCodeApi } from './vscodeApi.js';
     mysqlSslCaPath: document.getElementById('mysqlSslCaPath'),
     mysqlSslCertPath: document.getElementById('mysqlSslCertPath'),
     mysqlSslKeyPath: document.getElementById('mysqlSslKeyPath'),
+    btnBrowseSslCa: document.getElementById('btnBrowseSslCa'),
+    btnBrowseSslCert: document.getElementById('btnBrowseSslCert'),
+    btnBrowseSslKey: document.getElementById('btnBrowseSslKey'),
     mysqlSslServerName: document.getElementById('mysqlSslServerName'),
     clearPasswordWrap: document.getElementById('clearPasswordWrap'),
     mysqlClearPassword: document.getElementById('mysqlClearPassword'),
@@ -176,6 +188,9 @@ import { getVsCodeApi } from './vscodeApi.js';
   elements.btnCancelConnectionForm.addEventListener('click', () => hideConnectionForm());
   elements.connectionType.addEventListener('change', updateConnectionTypeFields);
   elements.btnBrowseSqlite.addEventListener('click', () => sendRequest('pickSqliteFile'));
+  elements.btnBrowseSslCa.addEventListener('click', () => sendRequest('pickCertFile', { target: 'caPath' }));
+  elements.btnBrowseSslCert.addEventListener('click', () => sendRequest('pickCertFile', { target: 'certPath' }));
+  elements.btnBrowseSslKey.addEventListener('click', () => sendRequest('pickCertFile', { target: 'keyPath' }));
   elements.btnTestConnection.addEventListener('click', () => {
     elements.btnTestConnection.disabled = true;
     elements.testConnectionStatus.hidden = false;
@@ -226,6 +241,19 @@ import { getVsCodeApi } from './vscodeApi.js';
       case 'sqliteFilePicked':
         if (message.filePath) {
           elements.sqliteFilePath.value = message.filePath;
+        }
+        break;
+
+      case 'certFilePicked':
+        if (message.filePath) {
+          const field = {
+            caPath: elements.mysqlSslCaPath,
+            certPath: elements.mysqlSslCertPath,
+            keyPath: elements.mysqlSslKeyPath,
+          }[message.target];
+          if (field) {
+            field.value = message.filePath;
+          }
         }
         break;
 

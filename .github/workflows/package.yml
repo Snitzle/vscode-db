@@ -1,0 +1,83 @@
+# Builds one platform-specific VSIX per target and (on a version tag) publishes
+# each to the VS Code Marketplace. OpenVSDB ships the native `sqlite3` binding,
+# so a single VSIX would only work on the machine it was packaged on — the
+# Marketplace serves each user (including the WSL remote server) the VSIX built
+# for their platform. sqlite3 5.x uses NAPI prebuilds fetched by
+# `prebuild-install`, which accepts --platform/--arch, so every target is
+# cross-fetched from one Linux runner with no compile toolchain. NAPI is
+# ABI-stable, so the same binary serves both the Electron extension host and the
+# standalone Node server VS Code runs inside WSL.
+name: Package & Publish
+
+on:
+  push:
+    tags: ['v*'] # e.g. git tag v0.0.2 && git push --tags
+  workflow_dispatch: {} # manual run: builds + uploads VSIX artifacts, does not publish
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - vsce_target: linux-x64 # WSL and most Linux
+            platform: linux
+            arch: x64
+          - vsce_target: linux-arm64
+            platform: linux
+            arch: arm64
+          - vsce_target: win32-x64 # Windows local windows
+            platform: win32
+            arch: x64
+          - vsce_target: darwin-x64
+            platform: darwin
+            arch: x64
+          - vsce_target: darwin-arm64
+            platform: darwin
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      # Replace the natively-installed binding with the one for the target.
+      # --force so it overwrites the runner's own (linux-x64) binding for the
+      # foreign targets. Run inside the sqlite3 package dir so prebuild-install
+      # reads its package.json.
+      - name: Cross-fetch sqlite3 binding for ${{ matrix.vsce_target }}
+        working-directory: node_modules/sqlite3
+        run: npx --no-install prebuild-install -r napi --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} --force --verbose
+
+      - name: Verify the binding is present
+        run: node -e "require('fs').accessSync('node_modules/sqlite3/build/Release/node_sqlite3.node'); console.log('ok: node_sqlite3.node present for ${{ matrix.vsce_target }}')"
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package --target ${{ matrix.vsce_target }} -o "openvsdb-${{ matrix.vsce_target }}.vsix"
+
+      # The runner is linux-x64, so only the linux-x64 binding is executable here.
+      # This proves the shipped binding actually loads before it reaches a user.
+      - name: Smoke test (linux-x64 only)
+        if: matrix.vsce_target == 'linux-x64'
+        run: |
+          node -e "const s=require('./node_modules/sqlite3'); new s.Database(':memory:', e => { if (e) { console.error(e); process.exit(1); } console.log('ok: sqlite3 opens in-memory DB'); });"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openvsdb-${{ matrix.vsce_target }}
+          path: openvsdb-${{ matrix.vsce_target }}.vsix
+
+      # Publish only on a version tag, and only if the Marketplace PAT is set.
+      # Add the token under Settings → Secrets and variables → Actions as VSCE_PAT.
+      - name: Publish to Marketplace
+        if: startsWith(github.ref, 'refs/tags/v') && env.VSCE_PAT != ''
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx @vscode/vsce publish --target ${{ matrix.vsce_target }} --packagePath "openvsdb-${{ matrix.vsce_target }}.vsix" --pat "$VSCE_PAT"
