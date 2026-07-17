@@ -132,3 +132,35 @@ export function statementReturnsRows(statement: string): boolean {
   const head = statement.replace(/^[\s(]+/, '').toUpperCase();
   return /^(SELECT|PRAGMA|WITH|EXPLAIN|VALUES|SHOW|DESCRIBE|DESC)\b/.test(head);
 }
+
+/**
+ * Conservative read-only check for a single statement, used to gate what the
+ * language-model tools may execute. False negatives are fine (the model just
+ * can't run that query); false positives are not, so anything ambiguous is
+ * rejected:
+ * - only SELECT / WITH…SELECT / EXPLAIN / SHOW / DESCRIBE heads are allowed
+ *   (PRAGMA is rejected outright — `PRAGMA x = y` writes);
+ * - WITH bodies must not smuggle data-modifying keywords (MySQL and SQLite
+ *   both allow `WITH … UPDATE/INSERT/DELETE`);
+ * - `SELECT … INTO OUTFILE/DUMPFILE` (writes server-side files) is rejected.
+ */
+export function isReadOnlyStatement(statement: string): boolean {
+  if (splitSqlStatements(statement).length !== 1) {
+    return false;
+  }
+
+  const head = statement.replace(/^[\s(]+/, '').toUpperCase();
+  if (!/^(SELECT|WITH|EXPLAIN|SHOW|DESCRIBE|DESC)\b/.test(head)) {
+    return false;
+  }
+
+  if (/\b(INSERT|UPDATE|DELETE|REPLACE|MERGE)\b/i.test(statement) && /^WITH\b/.test(head)) {
+    return false;
+  }
+
+  if (/\bINTO\s+(OUTFILE|DUMPFILE)\b/i.test(statement)) {
+    return false;
+  }
+
+  return true;
+}

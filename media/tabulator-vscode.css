@@ -90,14 +90,32 @@
 }
 
 .tabulator-row .tabulator-cell {
+  /* Inline-flex vertically centers cell content within the fixed row height
+     (Tabulator's default inline-block leaves it top-aligned). */
+  display: inline-flex;
+  align-items: center;
   padding: 4px 8px;
   border-right: 1px solid color-mix(in srgb, var(--vscode-panel-border) 35%, transparent);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
+/* Right-aligned (numeric) cells: flex ignores text-align, so align with
+   justify-content instead. */
+.tabulator-row .tabulator-cell[style*='text-align: right'] {
+  justify-content: flex-end;
+}
+
+.tabulator-row .tabulator-cell[style*='text-align: center'] {
+  justify-content: center;
+}
+
 .tabulator-row .tabulator-cell.tabulator-frozen {
   background: inherit;
+  /* Tabulator pins frozen cells back to inline-block; re-apply the flex
+     centering used by every other cell. */
+  display: inline-flex;
+  align-items: center;
 }
 
 /* Edited (pending) cell */
@@ -133,6 +151,21 @@
 /* Row-selection checkbox column */
 .tabulator .dbx-select-col {
   background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+}
+
+/* Center the selection checkboxes both ways — in body cells and in the
+   select-all header cell (cssClass lands on both). */
+.tabulator-row .tabulator-cell.dbx-select-col {
+  justify-content: center;
+  padding: 0;
+}
+
+.tabulator .tabulator-header .tabulator-col.dbx-select-col .tabulator-col-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0;
 }
 
 .tabulator input[type='checkbox'] {

@@ -412,11 +412,73 @@ body[data-surface='sidebar'] .modalContent {
 }
 
 .treeConnection {
+  position: relative;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   background: color-mix(in srgb, var(--vscode-editorWidget-background) 90%, transparent);
-  /* Not clipped: the per-connection kebab dropdown overflows the card. */
+  /* Not clipped: the per-connection kebab dropdown overflows the card, as does
+     the drag drop-indicator line, which sits in the gap between cards. */
   overflow: visible;
+}
+
+/* Dimmed while it is the item being dragged. */
+.treeConnection.dragging,
+.treeFolder.dragging {
+  opacity: 0.4;
+}
+
+/* Drop indicator: a line in the gap above or below the hovered card/folder,
+   showing where the dragged item will land. */
+.treeConnection[data-drop-edge]::before,
+.treeFolder[data-drop-edge]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--vscode-focusBorder, var(--accent));
+  pointer-events: none;
+}
+
+.treeConnection[data-drop-edge='top']::before,
+.treeFolder[data-drop-edge='top']::before {
+  top: -7px;
+}
+
+.treeConnection[data-drop-edge='bottom']::before,
+.treeFolder[data-drop-edge='bottom']::before {
+  bottom: -7px;
+}
+
+.dragHandle {
+  min-width: 0;
+  min-height: 0;
+  padding: 2px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+/* The handle stays out of sight until the card is hovered or the handle itself
+   is keyboard-focused, but always occupies its column so nothing shifts. */
+.treeConnectionHeader:hover .dragHandle,
+.dragHandle:focus-visible {
+  opacity: 0.7;
+}
+
+.dragHandle:hover {
+  opacity: 1;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.dragHandle .codicon {
+  font-size: 16px;
 }
 
 .kebabMenu {
@@ -496,6 +558,13 @@ body[data-surface='sidebar'] .modalContent {
   border-bottom: 1px solid var(--panel-border);
 }
 
+/* Leading column for the drag handle when reordering is available. The reduced
+   left padding keeps the title from shifting far once the handle is inset. */
+.treeConnectionHeader.draggable {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  padding-left: var(--space-1);
+}
+
 .treeTitle {
   display: flex;
   align-items: center;
@@ -535,6 +604,69 @@ body[data-surface='sidebar'] .modalContent {
   color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground, #f14c4c));
 }
 
+.statusDot.off {
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.6;
+}
+
+/* Environment accents: local = green, staging = amber, prod = red. Cards get
+   a colored left edge; table/query panels get a top strip via .root[data-env]. */
+:root {
+  --env-local: var(--vscode-testing-iconPassed, #3fb950);
+  --env-staging: #d0a350;
+  --env-prod: var(--danger);
+}
+
+.treeConnection[data-env='local'] {
+  border-left: 3px solid var(--env-local);
+}
+
+.treeConnection[data-env='staging'] {
+  border-left: 3px solid var(--env-staging);
+}
+
+.treeConnection[data-env='prod'] {
+  border-left: 3px solid var(--env-prod);
+}
+
+.envBadge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.envBadge.env-local {
+  background: color-mix(in srgb, var(--env-local) 22%, transparent);
+  color: var(--env-local);
+}
+
+.envBadge.env-staging {
+  background: color-mix(in srgb, var(--env-staging) 22%, transparent);
+  color: var(--env-staging);
+}
+
+.envBadge.env-prod {
+  background: color-mix(in srgb, var(--env-prod) 26%, transparent);
+  color: color-mix(in srgb, var(--env-prod) 65%, var(--vscode-foreground));
+}
+
+body[data-surface='panel'] .root[data-env='local'] {
+  border-top: 3px solid var(--env-local);
+}
+
+body[data-surface='panel'] .root[data-env='staging'] {
+  border-top: 3px solid var(--env-staging);
+}
+
+body[data-surface='panel'] .root[data-env='prod'] {
+  border-top: 3px solid var(--env-prod);
+}
+
 .iconBtn {
   min-width: 0;
   min-height: 0;
@@ -562,6 +694,18 @@ body[data-surface='sidebar'] .modalContent {
   font-size: 15px;
 }
 
+.treeControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.treeControls .treeFilter {
+  flex: 1 1 auto;
+  margin-bottom: 0;
+}
+
 .treeFilter {
   display: flex;
   align-items: center;
@@ -572,6 +716,53 @@ body[data-surface='sidebar'] .modalContent {
   border-radius: 6px;
   min-height: var(--control-height);
   margin-bottom: var(--space-2);
+}
+
+/* Folder (collection) groups */
+.treeFolder {
+  position: relative;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--vscode-editorWidget-background) 55%, transparent);
+  /* Not clipped for the same reason as .treeConnection: kebab dropdown and the
+     drop-indicator line overflow the block. */
+  overflow: visible;
+}
+
+.treeFolder.dropInto {
+  border-color: var(--vscode-focusBorder, var(--accent));
+  background: color-mix(in srgb, var(--vscode-focusBorder, var(--accent)) 10%, transparent);
+}
+
+.treeFolderHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.treeFolderHeader.draggable {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding-left: var(--space-1);
+}
+
+.treeFolderHeader:hover {
+  background: var(--vscode-list-hoverBackground);
+  border-radius: 8px;
+}
+
+.treeFolder:not(.collapsed) > .treeFolderHeader .treeChevron {
+  transform: rotate(90deg);
+}
+
+.treeFolderBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) var(--space-2);
 }
 
 .treeFilter .codicon {
@@ -586,6 +777,35 @@ body[data-surface='sidebar'] .modalContent {
   height: 26px;
   padding: 0;
   border-radius: 0;
+}
+
+/* Per-connection table search row, sitting between the card header and the
+   schema list. */
+.connSearch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 60%, transparent);
+  background: color-mix(in srgb, var(--vscode-input-background) 55%, transparent);
+}
+
+.connSearch .codicon {
+  font-size: 13px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.connSearch input {
+  border: none;
+  background: transparent;
+  min-height: 0;
+  height: 24px;
+  padding: 0;
+  border-radius: 0;
+}
+
+.treeNoMatch {
+  padding: var(--space-2) var(--space-3);
 }
 
 .treeSchema {

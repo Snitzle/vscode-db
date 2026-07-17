@@ -1,9 +1,36 @@
 export type ConnectionType = 'mysql' | 'sqlite';
 
+/**
+ * Deployment tier of a connection. Drives the colored accents in the UI and
+ * the extra "PRODUCTION" wording on destructive confirmations.
+ */
+export type ConnectionEnvironment = 'local' | 'staging' | 'prod';
+
 export interface BaseConnectionMeta {
   id: string;
   name: string;
   type: ConnectionType;
+  /** Folder (collection) this connection lives in; undefined = top level. */
+  folderId?: string;
+  environment?: ConnectionEnvironment;
+}
+
+/** SSH port-forward settings for reaching a database behind a bastion. */
+export interface SshTunnelOptions {
+  enabled: boolean;
+  host: string;
+  port: number;
+  user: string;
+  /** The password / key passphrase itself lives in SecretStorage. */
+  authMethod: 'password' | 'key' | 'agent';
+  /** Private key file when authMethod === 'key'. Supports a leading `~`. */
+  keyPath?: string;
+}
+
+/** A named, orderable collection of connections shown as a foldable group. */
+export interface FolderMeta {
+  id: string;
+  name: string;
 }
 
 export interface MySqlSslOptions {
@@ -24,6 +51,7 @@ export interface MySqlConnectionMeta extends BaseConnectionMeta {
   ssl?: MySqlSslOptions;
   /** Enable the mysql_clear_password auth plugin (LDAP/PAM-backed servers). */
   allowClearTextAuth?: boolean;
+  sshTunnel?: SshTunnelOptions;
 }
 
 export interface SqliteConnectionMeta extends BaseConnectionMeta {
@@ -45,6 +73,11 @@ export interface MySqlConnectionInput {
   database: string;
   ssl?: MySqlSslOptions;
   allowClearTextAuth?: boolean;
+  environment?: ConnectionEnvironment;
+  sshTunnel?: SshTunnelOptions;
+  /** SSH password or key passphrase (stored as a secret, never in state). */
+  sshPassword?: string;
+  clearSshPassword?: boolean;
 }
 
 export interface SqliteConnectionInput {
@@ -52,6 +85,7 @@ export interface SqliteConnectionInput {
   type: 'sqlite';
   name: string;
   filePath: string;
+  environment?: ConnectionEnvironment;
 }
 
 export type ConnectionInput = MySqlConnectionInput | SqliteConnectionInput;
@@ -71,7 +105,10 @@ export interface ConnectionTreeNode {
   connectionId: string;
   connectionType: ConnectionType;
   name: string;
-  status: 'connected' | 'error';
+  folderId?: string;
+  environment?: ConnectionEnvironment;
+  /** 'disconnected' = no client yet; connecting is explicit (or via opening a table). */
+  status: 'connected' | 'disconnected' | 'error';
   message?: string;
   schemas: SchemaNode[];
 }

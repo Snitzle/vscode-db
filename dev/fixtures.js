@@ -112,6 +112,7 @@
     return {
       kind: 'tableData',
       connectionId: 'fixture-conn',
+      environment: 'prod',
       info: tableInfo(),
       rows: filtered.slice(page * pageSize, page * pageSize + pageSize).map(toRowData),
       page,
@@ -191,44 +192,73 @@
   }
 
   const connections = [
-    { id: 'fixture-conn', name: 'Eventwise Mobile', type: 'sqlite', filePath: '/tmp/eventwise.sqlite' },
-    { id: 'fixture-mysql', name: 'Production API', type: 'mysql', host: 'db.internal', port: 3306, user: 'app', database: 'api' },
+    { id: 'fixture-conn', name: 'Eventwise Mobile', type: 'sqlite', filePath: '/tmp/eventwise.sqlite', folderId: 'fixture-folder', environment: 'local' },
+    { id: 'fixture-mysql', name: 'Production API', type: 'mysql', host: 'db.internal', port: 3306, user: 'app', database: 'api', environment: 'prod' },
+    { id: 'fixture-staging', name: 'Staging DB', type: 'sqlite', filePath: '/tmp/staging.sqlite', folderId: 'fixture-folder', environment: 'staging' },
+  ];
+
+  const folders = [{ id: 'fixture-folder', name: 'Eventwise' }];
+  let nextFolderNumber = 1;
+
+  // Schema payloads applied to a node when its connection "connects".
+  const fixtureSchemas = {
+    'fixture-conn': [
+      {
+        name: 'main',
+        objects: [
+          { schema: 'main', name: 'accounts', type: 'table' },
+          { schema: 'main', name: 'events', type: 'table' },
+          { schema: 'main', name: 'jobs', type: 'table' },
+          { schema: 'main', name: 'migrations', type: 'table' },
+          { schema: 'main', name: 'users', type: 'table' },
+          { schema: 'main', name: 'active_users', type: 'view' },
+        ],
+      },
+    ],
+    'fixture-staging': [
+      {
+        name: 'main',
+        objects: [
+          { schema: 'main', name: 'feature_flags', type: 'table' },
+          { schema: 'main', name: 'sessions', type: 'table' },
+        ],
+      },
+    ],
+  };
+
+  // Mutable so the reorder/connect handlers can reflect changes back to the
+  // webview, mirroring how the host re-emits `state`.
+  const treeNodes = [
+    {
+      connectionId: 'fixture-conn',
+      connectionType: 'sqlite',
+      name: 'Eventwise Mobile',
+      folderId: 'fixture-folder',
+      environment: 'local',
+      status: 'connected',
+      schemas: fixtureSchemas['fixture-conn'],
+    },
+    {
+      connectionId: 'fixture-mysql',
+      connectionType: 'mysql',
+      name: 'Production API',
+      environment: 'prod',
+      status: 'disconnected',
+      schemas: [],
+    },
+    {
+      connectionId: 'fixture-staging',
+      connectionType: 'sqlite',
+      name: 'Staging DB',
+      folderId: 'fixture-folder',
+      environment: 'staging',
+      status: 'disconnected',
+      schemas: [],
+    },
   ];
 
   function treeState() {
-    return {
-      kind: 'state',
-      connections,
-      tree: [
-        {
-          connectionId: 'fixture-conn',
-          connectionType: 'sqlite',
-          name: 'Eventwise Mobile',
-          status: 'connected',
-          schemas: [
-            {
-              name: 'main',
-              objects: [
-                { schema: 'main', name: 'accounts', type: 'table' },
-                { schema: 'main', name: 'events', type: 'table' },
-                { schema: 'main', name: 'jobs', type: 'table' },
-                { schema: 'main', name: 'migrations', type: 'table' },
-                { schema: 'main', name: 'users', type: 'table' },
-                { schema: 'main', name: 'active_users', type: 'view' },
-              ],
-            },
-          ],
-        },
-        {
-          connectionId: 'fixture-mysql',
-          connectionType: 'mysql',
-          name: 'Production API',
-          status: 'error',
-          message: 'MySQL connection refused. Check host, port, and network access.',
-          schemas: [],
-        },
-      ],
-    };
+    return { kind: 'state', connections, tree: treeNodes, folders };
   }
 
   function handleExplorerMessage(message) {
@@ -277,6 +307,76 @@
       case 'removeConnection':
         return [{ kind: 'info', message: '[harness] Connection removed (not persisted).' }, treeState()];
 
+      case 'connectConnection': {
+        const node = treeNodes.find((item) => item.connectionId === message.connectionId);
+        if (!node) {
+          return [{ kind: 'error', message: 'Connection not found.' }];
+        }
+        if (node.connectionId === 'fixture-mysql') {
+          node.status = 'error';
+          node.message = 'MySQL connection refused. Check host, port, and network access.';
+        } else {
+          node.status = 'connected';
+          delete node.message;
+          node.schemas = fixtureSchemas[node.connectionId] || [];
+        }
+        return [treeState()];
+      }
+
+      case 'reorderConnections': {
+        const rank = new Map(message.orderedIds.map((id, index) => [id, index]));
+        const byRank = (getId) => (a, b) => (rank.get(getId(a)) ?? 0) - (rank.get(getId(b)) ?? 0);
+        connections.sort(byRank((item) => item.id));
+        treeNodes.sort(byRank((item) => item.connectionId));
+        return [treeState()];
+      }
+
+      case 'moveConnection': {
+        const rank = new Map(message.orderedIds.map((id, index) => [id, index]));
+        const byRank = (getId) => (a, b) => (rank.get(getId(a)) ?? 0) - (rank.get(getId(b)) ?? 0);
+        connections.sort(byRank((item) => item.id));
+        treeNodes.sort(byRank((item) => item.connectionId));
+        const folderId = message.folderId || undefined;
+        for (const item of connections) {
+          if (item.id === message.connectionId) item.folderId = folderId;
+        }
+        for (const node of treeNodes) {
+          if (node.connectionId === message.connectionId) node.folderId = folderId;
+        }
+        return [treeState()];
+      }
+
+      case 'createFolder': {
+        // The real host prompts for a name with a native input box.
+        folders.push({ id: `fixture-folder-${nextFolderNumber}`, name: `New folder ${nextFolderNumber}` });
+        nextFolderNumber += 1;
+        return [{ kind: 'info', message: '[harness] Folder created (host would prompt for a name).' }, treeState()];
+      }
+
+      case 'renameFolder': {
+        const folder = folders.find((item) => item.id === message.folderId);
+        if (folder) folder.name = `${folder.name} (renamed)`;
+        return [{ kind: 'info', message: '[harness] Folder renamed (host would prompt for a name).' }, treeState()];
+      }
+
+      case 'removeFolder': {
+        const index = folders.findIndex((item) => item.id === message.folderId);
+        if (index !== -1) folders.splice(index, 1);
+        for (const item of connections) {
+          if (item.folderId === message.folderId) delete item.folderId;
+        }
+        for (const node of treeNodes) {
+          if (node.folderId === message.folderId) delete node.folderId;
+        }
+        return [{ kind: 'info', message: '[harness] Folder removed (host would confirm first).' }, treeState()];
+      }
+
+      case 'reorderFolders': {
+        const rank = new Map(message.orderedIds.map((id, index) => [id, index]));
+        folders.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+        return [treeState()];
+      }
+
       default:
         return [{ kind: 'info', message: `[harness] Unhandled request: ${message.kind}` }];
     }
@@ -285,7 +385,13 @@
   function handleQueryMessage(message) {
     switch (message.kind) {
       case 'ready':
-        return [{ kind: 'queryConfig', connectionName: 'Eventwise Mobile', dialect: 'sqlite' }];
+        return [{ kind: 'queryConfig', connectionName: 'Eventwise Mobile', dialect: 'sqlite', environment: 'staging' }];
+
+      case 'pickQueryHistory':
+        return [
+          { kind: 'info', message: '[harness] Host would show a QuickPick over query history.' },
+          { kind: 'insertSql', sql: "select id, name, role from users where role = 'Owner' limit 10" },
+        ];
 
       case 'runQuery': {
         const statements = message.sql
@@ -315,9 +421,37 @@
           };
         });
 
+        // The host marks simple single-table SELECTs as editable; the harness
+        // treats every row-producing fixture result as `main.users`.
+        const editable = results.map((result) =>
+          result.columns.length
+            ? {
+                schema: 'main',
+                table: 'users',
+                keyKind: 'primary',
+                keyColumns: ['id'],
+                columns: [
+                  { name: 'id', editable: false, nullable: false, dataType: 'INTEGER' },
+                  { name: 'name', editable: true, nullable: false, dataType: 'TEXT' },
+                  { name: 'email', editable: true, nullable: true, dataType: 'TEXT' },
+                  { name: 'role', editable: true, nullable: false, dataType: 'TEXT' },
+                  { name: 'score', editable: true, nullable: true, dataType: 'double' },
+                ],
+              }
+            : null,
+        );
+
         return results.length
-          ? [{ kind: 'queryResults', results }]
+          ? [{ kind: 'queryResults', results, editable }]
           : [{ kind: 'error', message: 'Nothing to run.' }];
+      }
+
+      case 'updateQueryRows': {
+        for (const update of message.payload.updates) {
+          const target = rows.find((record) => record.id === update.key.values.id);
+          if (target) Object.assign(target, update.changes);
+        }
+        return [{ kind: 'mutationApplied', message: 'Changes applied.' }];
       }
 
       case 'exportResults':

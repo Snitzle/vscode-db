@@ -224,6 +224,20 @@ class TablePanelInstance implements vscode.Disposable {
           return;
 
         case 'updateRows': {
+          // Updates apply silently everywhere except production, which gets an
+          // explicit confirmation naming the environment.
+          if (await this.isProduction()) {
+            const count = message.payload.updates.length;
+            const choice = await vscode.window.showWarningMessage(
+              `PRODUCTION: apply ${count} row update${count === 1 ? '' : 's'} to ${this.activeTable.schema}.${this.activeTable.table}?`,
+              { modal: true },
+              'Apply to production',
+            );
+            if (choice !== 'Apply to production') {
+              return;
+            }
+          }
+
           const client = await this.clientManager.getClient(this.activeTable.connectionId);
           await client.updateRows(message.payload);
           this.postEvent({ kind: 'mutationApplied', message: 'Changes applied.' }, message.requestId);
@@ -233,8 +247,9 @@ class TablePanelInstance implements vscode.Disposable {
 
         case 'deleteRows': {
           const count = message.payload.keys.length;
+          const prodPrefix = (await this.isProduction()) ? 'PRODUCTION: ' : '';
           const choice = await vscode.window.showWarningMessage(
-            `Delete ${count} row${count === 1 ? '' : 's'} from ${this.activeTable.schema}.${this.activeTable.table}? This cannot be undone.`,
+            `${prodPrefix}Delete ${count} row${count === 1 ? '' : 's'} from ${this.activeTable.schema}.${this.activeTable.table}? This cannot be undone.`,
             { modal: true },
             'Delete',
           );
@@ -320,6 +335,11 @@ class TablePanelInstance implements vscode.Disposable {
     );
   }
 
+  private async isProduction(): Promise<boolean> {
+    const connection = await this.connectionStore.getConnection(this.activeTable.connectionId);
+    return connection?.environment === 'prod';
+  }
+
   private async refreshActiveTable(requestId?: string): Promise<void> {
     const client = await this.clientManager.getClient(this.activeTable.connectionId);
     const result = await client.queryTableRows(
@@ -345,10 +365,13 @@ class TablePanelInstance implements vscode.Disposable {
       pageSize: result.pageSize,
     };
 
+    const connection = await this.connectionStore.getConnection(this.activeTable.connectionId);
+
     this.postEvent(
       {
         kind: 'tableData',
         connectionId: this.activeTable.connectionId,
+        environment: connection?.environment,
         info: result.info,
         rows: result.rows,
         page: result.page,

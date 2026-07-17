@@ -3,6 +3,7 @@ import '@vscode/codicons/dist/codicon.css';
 import 'tabulator-tables/dist/css/tabulator.min.css';
 import './tabulator-vscode.css';
 import { getVsCodeApi } from './vscodeApi.js';
+import { expandNowKeyword, parseInputToScalar, scalarEquals } from './valueParsing.js';
 
 (() => {
   const vscode = getVsCodeApi();
@@ -23,10 +24,10 @@ import { getVsCodeApi } from './vscodeApi.js';
 
   const app = document.getElementById('app');
   app.innerHTML = `
-    <div class="root">
+    <div class="root" id="panelRoot">
       <div class="toolbar">
         <div class="toolbarTitle">
-          <h1 id="tableTitle">Loading table...</h1>
+          <h1><span id="tableTitle">Loading table...</span> <span id="envBadge" class="envBadge" hidden></span></h1>
           <div id="tableMeta" class="muted">Waiting for database rows.</div>
         </div>
         <div class="inlineButtons">
@@ -156,7 +157,9 @@ import { getVsCodeApi } from './vscodeApi.js';
   `;
 
   const elements = {
+    panelRoot: document.getElementById('panelRoot'),
     tableTitle: document.getElementById('tableTitle'),
+    envBadge: document.getElementById('envBadge'),
     tableMeta: document.getElementById('tableMeta'),
     btnRefreshTable: document.getElementById('btnRefreshTable'),
     tableWarning: document.getElementById('tableWarning'),
@@ -318,6 +321,27 @@ import { getVsCodeApi } from './vscodeApi.js';
     handleEvent(event.data);
   });
 
+  // Undo/redo over staged (not yet submitted) cell edits. Text inputs keep
+  // their native undo — the shortcut only acts when focus is on the grid/page.
+  document.addEventListener('keydown', (event) => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') {
+      return;
+    }
+    const target = event.target;
+    if (
+      target &&
+      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (event.shiftKey) {
+      redoEdit();
+    } else {
+      undoEdit();
+    }
+  });
+
   sendRequest('ready');
 
   function handleEvent(message) {
@@ -340,6 +364,8 @@ import { getVsCodeApi } from './vscodeApi.js';
         elements.pageSize.value = String(message.pageSize);
         elements.whereInput.value = message.where || '';
         state.pendingEdits.clear();
+        clearEditHistory();
+        applyEnvironment(message.environment);
         renderMeta();
         renderGrid();
         populateFilterColumns();
@@ -688,7 +714,9 @@ import { getVsCodeApi } from './vscodeApi.js';
         cellEdited: (cell) => handleCellEdited(active, column, cell),
         headerClick: (event) => toggleSort(column.name, event.shiftKey),
         headerMenu: buildHeaderMenu(),
-        contextMenu: buildCellMenu(),
+        // Function form: the menu is rebuilt per right-click so per-cell items
+        // (Set NULL) can check the actual row/column.
+        contextMenu: (event, cell) => buildCellMenu(active, column, cell),
       });
     }
 
@@ -778,6 +806,55 @@ import { getVsCodeApi } from './vscodeApi.js';
     return state.activeTable.rows[data._dbx_i];
   }
 
+  // Stacks of {rowIndex, field, before, after} describing staged cell edits.
+  // `applying` suppresses re-recording while undo/redo replays a value, and
+  // `pendingBefore` carries the pre-now() value across the setValue re-entry
+  // so the whole expansion undoes as one step.
+  const editHistory = { undo: [], redo: [], applying: false, pendingBefore: undefined };
+
+  function clearEditHistory() {
+    editHistory.undo.length = 0;
+    editHistory.redo.length = 0;
+    editHistory.applying = false;
+    editHistory.pendingBefore = undefined;
+  }
+
+  function undoEdit() {
+    const entry = editHistory.undo.pop();
+    if (!entry || !applyHistoryValue(entry.rowIndex, entry.field, entry.before)) {
+      return;
+    }
+    editHistory.redo.push(entry);
+  }
+
+  function redoEdit() {
+    const entry = editHistory.redo.pop();
+    if (!entry || !applyHistoryValue(entry.rowIndex, entry.field, entry.after)) {
+      return;
+    }
+    editHistory.undo.push(entry);
+  }
+
+  function applyHistoryValue(rowIndex, field, value) {
+    if (!state.tabulator) {
+      return false;
+    }
+    const gridRow = state.tabulator.getRow(rowIndex);
+    if (!gridRow) {
+      return false;
+    }
+
+    // setValue fires cellEdited, which re-stages the pending edit and updates
+    // the highlight — everything except recording a new history entry.
+    editHistory.applying = true;
+    try {
+      gridRow.getCell(field).setValue(value);
+    } finally {
+      editHistory.applying = false;
+    }
+    return true;
+  }
+
   function handleCellEdited(active, column, cell) {
     const row = originalRow(cell);
     if (!row) {
@@ -785,6 +862,28 @@ import { getVsCodeApi } from './vscodeApi.js';
     }
 
     onCellEdit(row, column, cell.getValue());
+
+    // Keyword inputs (now()) parse to a different value than what was typed;
+    // show the expanded value in the grid. Guarded so the setValue-triggered
+    // re-entry parses to itself and stops.
+    const expanded = expandNowKeyword(String(cell.getValue() ?? '').trim(), column);
+    if (expanded !== undefined && expanded !== cell.getValue()) {
+      editHistory.pendingBefore = cell.getOldValue();
+      cell.setValue(expanded);
+      return;
+    }
+
+    if (!editHistory.applying) {
+      editHistory.undo.push({
+        rowIndex: cell.getData()._dbx_i,
+        field: column.name,
+        before: editHistory.pendingBefore !== undefined ? editHistory.pendingBefore : cell.getOldValue(),
+        after: cell.getValue(),
+      });
+      // A fresh edit invalidates the redo branch.
+      editHistory.redo.length = 0;
+    }
+    editHistory.pendingBefore = undefined;
 
     const key = rowKeyString(row.key);
     const edit = key ? state.pendingEdits.get(key) : undefined;
@@ -852,12 +951,25 @@ import { getVsCodeApi } from './vscodeApi.js';
     }
   }
 
-  function buildCellMenu() {
-    return [
-      { label: 'View value', action: (event, cell) => openValueViewer(cell) },
-      { label: 'Copy value', action: (event, cell) => copyCellValue(cell) },
-      { label: 'Filter by this value', action: (event, cell) => filterByCell(cell) },
+  function buildCellMenu(active, column, cell) {
+    const menu = [
+      { label: 'View value', action: (event, menuCell) => openValueViewer(menuCell) },
+      { label: 'Copy value', action: (event, menuCell) => copyCellValue(menuCell) },
+      { label: 'Filter by this value', action: (event, menuCell) => filterByCell(menuCell) },
     ];
+
+    // Set NULL goes through the same pending-edits flow as typing NULL: the
+    // setValue triggers cellEdited, which stages the change for Submit.
+    const row = originalRow(cell);
+    if (column.nullable && cellEditable(active, column) && row && row.key) {
+      menu.push({
+        label: 'Set NULL',
+        action: (event, menuCell) => menuCell.setValue(null),
+        disabled: cell.getValue() === null || cell.getValue() === undefined,
+      });
+    }
+
+    return menu;
   }
 
   function openValueViewer(cell) {
@@ -1047,10 +1159,23 @@ import { getVsCodeApi } from './vscodeApi.js';
 
   function cancelEdits() {
     state.pendingEdits.clear();
+    clearEditHistory();
     if (state.tabulator && state.activeTable) {
       state.tabulator.setData(buildData(state.activeTable));
     }
     updateEditInfo();
+  }
+
+  function applyEnvironment(environment) {
+    if (environment) {
+      elements.panelRoot.dataset.env = environment;
+      elements.envBadge.hidden = false;
+      elements.envBadge.className = `envBadge env-${environment}`;
+      elements.envBadge.textContent = environment === 'prod' ? 'production' : environment;
+    } else {
+      delete elements.panelRoot.dataset.env;
+      elements.envBadge.hidden = true;
+    }
   }
 
   function deleteSelectedRows() {
@@ -1179,45 +1304,6 @@ import { getVsCodeApi } from './vscodeApi.js';
   function columnIsNumeric(column) {
     const lowerType = (column && column.dataType ? column.dataType : '').toLowerCase();
     return /(int|decimal|numeric|real|float|double|bigint)/.test(lowerType);
-  }
-
-  function parseInputToScalar(rawInput, column) {
-    const text = rawInput.trim();
-
-    if (text.length === 0) {
-      return column && column.nullable ? null : rawInput;
-    }
-
-    if (text.toUpperCase() === 'NULL') {
-      return null;
-    }
-
-    const lowerType = (column && column.dataType ? column.dataType : '').toLowerCase();
-    if (/(int|decimal|numeric|real|float|double)/.test(lowerType)) {
-      const num = Number(text);
-      if (!Number.isNaN(num)) {
-        return num;
-      }
-    }
-
-    if (/(bool)/.test(lowerType)) {
-      if (text === '1' || text.toLowerCase() === 'true') {
-        return true;
-      }
-      if (text === '0' || text.toLowerCase() === 'false') {
-        return false;
-      }
-    }
-
-    return rawInput;
-  }
-
-  function scalarEquals(a, b) {
-    if (a === b) {
-      return true;
-    }
-
-    return String(a) === String(b);
   }
 
   function showStatus(message, isError = false) {

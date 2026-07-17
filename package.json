@@ -10,7 +10,7 @@
     "url": "https://github.com/Snitzle/OpenVSDB.git"
   },
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.99.0"
   },
   "categories": [
     "Other"
@@ -50,6 +50,20 @@
         "command": "dbExplorer.refresh",
         "title": "OpenVSDB: Refresh",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "dbExplorer.runSqlDocument",
+        "title": "OpenVSDB: Run SQL File on Connection",
+        "icon": "$(play)"
+      },
+      {
+        "command": "dbExplorer.bindSqlDocument",
+        "title": "OpenVSDB: Select Connection for SQL File",
+        "icon": "$(database)"
+      },
+      {
+        "command": "dbExplorer.clearQueryHistory",
+        "title": "OpenVSDB: Clear Query History"
       }
     ],
     "menus": {
@@ -64,8 +78,86 @@
           "when": "view == dbExplorer.home",
           "group": "navigation@2"
         }
+      ],
+      "editor/title": [
+        {
+          "command": "dbExplorer.runSqlDocument",
+          "when": "resourceLangId == sql",
+          "group": "navigation@1"
+        }
       ]
-    }
+    },
+    "languageModelTools": [
+      {
+        "name": "openvsdb_listSchemas",
+        "displayName": "List Database Schemas",
+        "toolReferenceName": "dbSchemas",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(database)",
+        "modelDescription": "List the schemas, tables, and views of a database connection configured in OpenVSDB. Call with no arguments first to discover connections when unsure.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connection": {
+              "type": "string",
+              "description": "Connection name or id. Optional when only one connection exists."
+            }
+          }
+        }
+      },
+      {
+        "name": "openvsdb_describeTable",
+        "displayName": "Describe Database Table",
+        "toolReferenceName": "dbTable",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(table)",
+        "modelDescription": "Describe a table on an OpenVSDB connection: columns with types, nullability, keys, auto-increment, plus the CREATE statement.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "table"
+          ],
+          "properties": {
+            "connection": {
+              "type": "string",
+              "description": "Connection name or id. Optional when only one connection exists."
+            },
+            "schema": {
+              "type": "string",
+              "description": "Schema/database name. Defaults to the connection's default schema."
+            },
+            "table": {
+              "type": "string",
+              "description": "Table name to describe."
+            }
+          }
+        }
+      },
+      {
+        "name": "openvsdb_query",
+        "displayName": "Run Read-Only SQL Query",
+        "toolReferenceName": "dbQuery",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(search)",
+        "modelDescription": "Run a single read-only SQL statement (SELECT / WITH…SELECT / EXPLAIN / SHOW / DESCRIBE) on an OpenVSDB connection and get up to 100 rows back as a markdown table. Data-modifying statements are rejected.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "sql"
+          ],
+          "properties": {
+            "connection": {
+              "type": "string",
+              "description": "Connection name or id. Optional when only one connection exists."
+            },
+            "sql": {
+              "type": "string",
+              "description": "One read-only SQL statement."
+            }
+          }
+        }
+      }
+    ]
   },
   "scripts": {
     "check-types": "tsc --noEmit",
@@ -81,13 +173,17 @@
   "dependencies": {
     "mysql2": "^3.14.0",
     "sqlite3": "^5.1.7",
+    "ssh2": "^1.17.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",
+    "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.14.1",
+    "@types/ssh2": "^1.15.5",
     "@types/uuid": "^10.0.0",
-    "@types/vscode": "^1.90.0",
+    "@types/vscode": "^1.99.1",
     "@vscode/codicons": "^0.0.45",
     "esbuild": "^0.21.5",
     "mocha": "^11.1.0",

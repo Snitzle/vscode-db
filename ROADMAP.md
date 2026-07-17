@@ -29,14 +29,33 @@ The maintainer migrated from IntelliJ/DataGrip and most misses its database inte
 - [x] **Query panel** — kebab action "New query" opens an editor-tab webview bound to the connection: SQL textarea, Run (⌘/Ctrl+Enter; runs the selection when one exists), per-statement results — Tabulator grid for row sets, affected-rows/insert-id summary for DML — with execution times and inline errors. DML runs refresh that connection's open table grids.
 - [x] **Export abstraction (2026-07-02)** — export decomposed into source × format × destination (`src/export/tableSource.ts` streams table datasets lazily; the format registry carries `container`/`supportsClipboard` flags). The matrix: **table** (selection / page / entire-table-with-filters — the scope pick shows the active filters/sort), **database** (SQL dump into one `.sql`, or CSV as a folder with one file per table, views included as data), and **query result** (per-result Export button; CSV/TSV/JSON/Markdown/SQL INSERTs with a prompted table name; duplicate columns suffixed for JSON). Table SQL exports now include the CREATE statement.
 
+## Shipped 2026-07-16 — sidebar UX + grid editing pass
+
+- **Lazy connect** — the sidebar no longer connects to every DB on load; per-connection plug/reload button, `disconnected` tree state, connect errors shown on the card; saving a connection still connects immediately.
+- **Connection folders (collections)** — foldable, drag-and-droppable groups (`dbExplorer.folders` + `folderId` per connection); host-side create/rename/remove dialogs; drops move between folders/top level atomically (`applyMove`, unit-tested).
+- **Per-connection table search** — search icon per card filters just that connection, combinable with the global filter; focus survives re-renders.
+- **Grid polish** — vertically centered rows, centered selection checkboxes (incl. frozen-cell override), right-click **Set NULL**, `now()` keyword expands to the column-appropriate current date/time (shared `media/valueParsing.js`).
+- **Editable query results** — single-table SELECTs detected host-side (`src/sql/selectSource.ts`, unit-tested) become editable grids with pending edits + Submit via keyed UPDATEs; joins/unions/DISTINCT/subqueries stay read-only by design.
+
+## Shipped 2026-07-16 — TablePro-parity pass
+
+- **Settings Sync** — connections + folders roam via `setKeysForSync`; secrets stay local.
+- **Query history** — capped, deduped log (`dbExplorer.queryHistory`, unit-tested) recorded on every run (panels + .sql documents); History button opens a full-text QuickPick that inserts into the editor; `OpenVSDB: Clear Query History` command.
+- **Grid undo/redo** — ⌘/Ctrl+Z / ⇧⌘Z over staged cell edits in the table grid (before Submit); now()-expansions undo as one step.
+- **SSH tunnels** — `ssh2` local port-forward per MySQL connection (password / key / agent auth, secrets in SecretStorage), wired into client manager + test connection; SSH section in the connection modal.
+- **Native .sql editor binding** — status-bar picker + CodeLens bind a real `.sql` document to a connection; Run (editor title ▶, lens, or command) executes the selection/script into a reusable results-only panel beside the editor. Multi-cursor/vim/Copilot come free.
+- **Environments** — `local`/`staging`/`prod` per connection: colored card edge + badge in the sidebar, top strip + badge on table/query panels, and PRODUCTION-labelled confirmations for deletes, imports, and row updates against prod.
+- **Language-model tools** — `#dbSchemas`, `#dbTable`, `#dbQuery` (`contributes.languageModelTools` + `vscode.lm.registerTool`): chat agents can list schemas, describe tables, and run a single read-only statement (guarded by `isReadOnlyStatement`, unit-tested; 100-row cap; user confirmation on query runs). **Explain** button in the query panel wraps the script in `EXPLAIN` / `EXPLAIN QUERY PLAN`.
+- **Deep links** — `vscode://<ext-id>/open?connection=…[&schema=…&table=…&type=view]` opens a grid or query console.
+
 ## Later
 
-- Query panel v2: query history (globalState), export/copy of result grids, autocomplete, EXPLAIN viewer, native `.sql` editor + status-bar connection binding.
-- Change values v2: type-aware inline editors (date/boolean/NULL), DML preview before submit, transaction-mode toggle.
+- Query panel v2: autocomplete, EXPLAIN visualizer, result-grid copy actions.
+- Change values v2: type-aware inline editors (date/boolean pickers), DML preview before submit, transaction-mode toggle.
 - Import v2: CSV/TSV/JSON → table with column-mapping UI and batched transactional inserts.
 - Export v2: "Copy as …" cell/row context actions; delimiter/NULL-token/encoding options.
 - Inspect: jump-to-page control; image/hex blob viewers.
-- Broader parity: PostgreSQL/MariaDB/MSSQL clients, richer schema tree (indexes/FKs/procedures/triggers), FK navigation in the grid, ER diagrams, schema/data compare, environment color-coding, SSH tunnels.
+- Broader parity: PostgreSQL/MariaDB/MSSQL clients, richer schema tree (indexes/FKs/procedures/triggers), FK navigation in the grid, ER diagrams, schema/data compare.
 
 ## Verification
 

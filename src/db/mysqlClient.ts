@@ -96,7 +96,12 @@ export class MySqlClient implements DatabaseClient {
   public readonly dialect = 'mysql' as const;
   private readonly pool: mysql.Pool;
 
-  constructor(private readonly connection: MySqlConnectionMeta, password: string | undefined) {
+  constructor(
+    private readonly connection: MySqlConnectionMeta,
+    password: string | undefined,
+    /** Extra teardown run after the pool closes (e.g. the SSH tunnel). */
+    private readonly extraDisposal?: () => Promise<void>,
+  ) {
     this.pool = mysql.createPool({
       ...buildMySqlConnectionOptions(connection, password),
       waitForConnections: true,
@@ -107,6 +112,7 @@ export class MySqlClient implements DatabaseClient {
 
   async dispose(): Promise<void> {
     await this.pool.end();
+    await this.extraDisposal?.();
   }
 
   async listSchemas(): Promise<string[]> {

@@ -1,8 +1,10 @@
 import {
+  ConnectionEnvironment,
   ConnectionInput,
   ConnectionMeta,
   ConnectionTreeNode,
   DeleteRowsRequest,
+  FolderMeta,
   InsertRowRequest,
   FilterSpec,
   RawQueryResult,
@@ -21,6 +23,19 @@ export type SidebarWebviewRequest =
   | ({ kind: 'refreshTree' } & RequestBase)
   | ({ kind: 'saveConnection'; mode: 'add' | 'edit'; connection: ConnectionInput } & RequestBase)
   | ({ kind: 'removeConnection'; connectionId: string } & RequestBase)
+  | ({ kind: 'reorderConnections'; orderedIds: string[] } & RequestBase)
+  | ({ kind: 'connectConnection'; connectionId: string } & RequestBase)
+  | ({
+      kind: 'moveConnection';
+      connectionId: string;
+      /** Destination folder, or null for the top level. */
+      folderId: string | null;
+      orderedIds: string[];
+    } & RequestBase)
+  | ({ kind: 'createFolder' } & RequestBase)
+  | ({ kind: 'renameFolder'; folderId: string } & RequestBase)
+  | ({ kind: 'removeFolder'; folderId: string } & RequestBase)
+  | ({ kind: 'reorderFolders'; orderedIds: string[] } & RequestBase)
   | ({ kind: 'pickSqliteFile' } & RequestBase)
   | ({
       kind: 'openTable';
@@ -41,7 +56,12 @@ export interface EventBase {
 }
 
 export type SidebarExtensionEvent =
-  | ({ kind: 'state'; tree: ConnectionTreeNode[]; connections: ConnectionMeta[] } & EventBase)
+  | ({
+      kind: 'state';
+      tree: ConnectionTreeNode[];
+      connections: ConnectionMeta[];
+      folders: FolderMeta[];
+    } & EventBase)
   | ({ kind: 'sqliteFilePicked'; filePath?: string } & EventBase)
   | ({ kind: 'connectionSelectedForEdit'; connection: ConnectionMeta } & EventBase)
   | ({ kind: 'triggerAddConnection' } & EventBase)
@@ -72,6 +92,7 @@ export type TablePanelEvent =
   | ({
       kind: 'tableData';
       connectionId: string;
+      environment?: ConnectionEnvironment;
       info: TableInfo;
       rows: RowData[];
       page: number;
@@ -93,13 +114,50 @@ export type TablePanelEvent =
   | ({ kind: 'info'; message: string } & EventBase)
   | ({ kind: 'error'; message: string; details?: string } & EventBase);
 
+/** How one column of an editable query result maps back to its table. */
+export interface QueryEditableColumn {
+  name: string;
+  /** False for key columns, auto-increments, and expressions/aliases. */
+  editable: boolean;
+  nullable?: boolean;
+  dataType?: string;
+}
+
+/**
+ * Attached to a query result when the statement was a simple single-table
+ * SELECT whose rows can be updated in place. Aligned by index with
+ * `queryResults.results`; null = read-only result.
+ */
+export interface QueryEditableInfo {
+  schema: string;
+  table: string;
+  keyKind: 'primary' | 'unique' | 'rowid';
+  keyColumns: string[];
+  columns: QueryEditableColumn[];
+}
+
 export type QueryPanelRequest =
   | ({ kind: 'ready' } & RequestBase)
   | ({ kind: 'runQuery'; sql: string } & RequestBase)
+  | ({ kind: 'updateQueryRows'; payload: UpdateRowsRequest } & RequestBase)
+  | ({ kind: 'pickQueryHistory' } & RequestBase)
   | ({ kind: 'exportResults'; statementIndex: number } & RequestBase);
 
 export type QueryPanelEvent =
-  | ({ kind: 'queryConfig'; connectionName: string; dialect: 'mysql' | 'sqlite' } & EventBase)
-  | ({ kind: 'queryResults'; results: RawQueryResult[] } & EventBase)
+  | ({
+      kind: 'queryConfig';
+      connectionName: string;
+      dialect: 'mysql' | 'sqlite';
+      environment?: ConnectionEnvironment;
+      /** Results-only panels (bound .sql editors) hide the inline editor. */
+      hideEditor?: boolean;
+    } & EventBase)
+  | ({
+      kind: 'queryResults';
+      results: RawQueryResult[];
+      editable?: (QueryEditableInfo | null)[];
+    } & EventBase)
+  | ({ kind: 'insertSql'; sql: string } & EventBase)
+  | ({ kind: 'mutationApplied'; message: string } & EventBase)
   | ({ kind: 'info'; message: string } & EventBase)
   | ({ kind: 'error'; message: string; details?: string } & EventBase);
