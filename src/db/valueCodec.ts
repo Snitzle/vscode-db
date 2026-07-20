@@ -17,8 +17,10 @@ export function toScalar(value: unknown): Scalar {
     return value.toISOString();
   }
 
-  if (Buffer.isBuffer(value)) {
-    return `0x${value.toString('hex')}`;
+  // Covers Buffer too (Buffer extends Uint8Array); node:sqlite returns BLOBs
+  // as plain Uint8Array.
+  if (value instanceof Uint8Array) {
+    return `0x${Buffer.from(value).toString('hex')}`;
   }
 
   try {
@@ -33,6 +35,13 @@ export function isLockedSqliteError(error: unknown): boolean {
     return false;
   }
 
-  const err = error as { code?: string; message?: string };
-  return err.code === 'SQLITE_BUSY' || (err.message ?? '').toLowerCase().includes('database is locked');
+  // sqlite3 used code === 'SQLITE_BUSY'; node:sqlite throws ERR_SQLITE_ERROR
+  // with the numeric SQLite errcode (5 = SQLITE_BUSY). The message check keeps
+  // covering both.
+  const err = error as { code?: string; errcode?: number; message?: string };
+  return (
+    err.code === 'SQLITE_BUSY' ||
+    err.errcode === 5 ||
+    (err.message ?? '').toLowerCase().includes('database is locked')
+  );
 }

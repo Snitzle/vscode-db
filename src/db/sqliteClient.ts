@@ -1,4 +1,5 @@
-import * as sqlite3 from 'sqlite3';
+import * as fs from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import {
   ColumnInfo,
   DbObject,
@@ -57,40 +58,32 @@ interface SqliteDatabaseListRow {
   file: string;
 }
 
+/**
+ * SQLite access via the Node built-in `node:sqlite` (extension host Node ≥ 22.13
+ * / VS Code ≥ ~1.102). No native addon means one universal VSIX for every
+ * OS/architecture. The API is synchronous; the async wrappers below keep the
+ * {@link DatabaseClient} contract (and the UI's call sites) unchanged.
+ */
 export class SqliteClient implements DatabaseClient {
   public readonly dialect = 'sqlite' as const;
-  private readonly db: sqlite3.Database;
+  private readonly db: DatabaseSync;
 
-  private constructor(private readonly connection: SqliteConnectionMeta, database: sqlite3.Database) {
+  private constructor(private readonly connection: SqliteConnectionMeta, database: DatabaseSync) {
     this.db = database;
   }
 
   static async create(connection: SqliteConnectionMeta): Promise<SqliteClient> {
-    const database = await new Promise<sqlite3.Database>((resolve, reject) => {
-      const db = new sqlite3.Database(connection.filePath, sqlite3.OPEN_READWRITE, (error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
+    // DatabaseSync creates missing files by default; a typo'd path should be a
+    // clear error instead of a silently-born empty database.
+    if (!fs.existsSync(connection.filePath)) {
+      throw new Error(`SQLite database file not found: ${connection.filePath}`);
+    }
 
-        resolve(db);
-      });
-    });
-
-    return new SqliteClient(connection, database);
+    return new SqliteClient(connection, new DatabaseSync(connection.filePath));
   }
 
   async dispose(): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      this.db.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        resolve();
-      });
-    });
+    this.db.close();
   }
 
   async listSchemas(): Promise<string[]> {
@@ -489,60 +482,54 @@ export class SqliteClient implements DatabaseClient {
     throw new Error('Unexpected retry flow.');
   }
 
-  private async all<T>(sql: string, params: unknown[] = []): Promise<T[]> {
-    return new Promise<T[]>((resolve, reject) => {
-      this.db.all(sql, params, (error, rows) => {
-        if (error) {
-          reject(error);
-          return;
-        }
+  // node:sqlite is synchronous; these wrappers preserve the async signatures
+  // the rest of the client (and its retry loop) is written against.
 
-        resolve(rows as T[]);
-      });
-    });
+  private async all<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+    return this.db.prepare(sql).all(...params.map(toBindValue)) as T[];
   }
 
   private async get<T>(sql: string, params: unknown[] = []): Promise<T | undefined> {
-    return new Promise<T | undefined>((resolve, reject) => {
-      this.db.get(sql, params, (error, row) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        resolve(row as T | undefined);
-      });
-    });
+    return this.db.prepare(sql).get(...params.map(toBindValue)) as T | undefined;
   }
 
   private async run(sql: string, params: unknown[] = []): Promise<SqliteRunResult> {
-    return new Promise<SqliteRunResult>((resolve, reject) => {
-      this.db.run(sql, params, function onRun(error: Error | null) {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        resolve({
-          lastID: this.lastID,
-          changes: this.changes,
-        });
-      });
-    });
+    const result = this.db.prepare(sql).run(...params.map(toBindValue));
+    return {
+      lastID: Number(result.lastInsertRowid),
+      changes: Number(result.changes),
+    };
   }
 
   private async exec(sql: string): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      this.db.exec(sql, (error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        resolve();
-      });
-    });
+    this.db.exec(sql);
   }
+}
+
+/** What node:sqlite accepts as a bound parameter. */
+type SqliteBindValue = null | number | bigint | string | Uint8Array;
+
+/**
+ * node:sqlite binds only null/number/bigint/string/Uint8Array; the UI's edit
+ * pipeline also produces booleans (and undefined for absent values), which
+ * sqlite3 used to coerce. Coerce them the same way here.
+ */
+function toBindValue(value: unknown): SqliteBindValue {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value === 'boolean') {
+    return value ? 1 : 0;
+  }
+  if (
+    typeof value === 'number' ||
+    typeof value === 'bigint' ||
+    typeof value === 'string' ||
+    value instanceof Uint8Array
+  ) {
+    return value;
+  }
+  return String(value);
 }
 
 function toSqliteStringLiteral(value: string): string {

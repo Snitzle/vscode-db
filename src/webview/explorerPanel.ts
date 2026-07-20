@@ -132,6 +132,14 @@ export class ExplorerViewProvider implements vscode.WebviewViewProvider, vscode.
           await this.connectConnection(message.connectionId, message.requestId);
           return;
 
+        case 'disconnectConnection':
+          // Closes the client (pools, SSH tunnels); open grids/query panels on
+          // this connection stay open and will reconnect on their next action.
+          await this.clientManager.invalidate(message.connectionId);
+          this.connectErrors.delete(message.connectionId);
+          await this.postState(message.requestId);
+          return;
+
         case 'moveConnection':
           await this.connectionStore.moveConnection(message.connectionId, message.folderId, message.orderedIds);
           await this.postState(message.requestId);

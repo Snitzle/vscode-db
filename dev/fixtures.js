@@ -323,6 +323,16 @@
         return [treeState()];
       }
 
+      case 'disconnectConnection': {
+        const node = treeNodes.find((item) => item.connectionId === message.connectionId);
+        if (node) {
+          node.status = 'disconnected';
+          node.schemas = [];
+          delete node.message;
+        }
+        return [treeState()];
+      }
+
       case 'reorderConnections': {
         const rank = new Map(message.orderedIds.map((id, index) => [id, index]));
         const byRank = (getId) => (a, b) => (rank.get(getId(a)) ?? 0) - (rank.get(getId(b)) ?? 0);

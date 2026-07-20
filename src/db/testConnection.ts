@@ -1,6 +1,7 @@
+import * as fs from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import * as mysql from 'mysql2/promise';
 import { RowDataPacket } from 'mysql2';
-import * as sqlite3 from 'sqlite3';
 import { ConnectionInput } from '../types';
 import { buildMySqlConnectionOptions, MySqlTarget } from './mysqlClient';
 import { openSshTunnel, SshTunnel } from './sshTunnel';
@@ -80,28 +81,15 @@ async function testSqlite(filePath: string): Promise<string> {
   if (!filePath) {
     throw new Error('SQLite database file is required.');
   }
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`SQLite database file not found: ${filePath}`);
+  }
 
-  const db = await new Promise<sqlite3.Database>((resolve, reject) => {
-    const database = new sqlite3.Database(filePath, sqlite3.OPEN_READONLY, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve(database);
-    });
-  });
-
+  const db = new DatabaseSync(filePath, { readOnly: true });
   try {
-    return await new Promise<string>((resolve, reject) => {
-      db.get('SELECT sqlite_version() AS version', (error, row: { version?: string } | undefined) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(String(row?.version ?? 'unknown version'));
-      });
-    });
+    const row = db.prepare('SELECT sqlite_version() AS version').get() as { version?: string } | undefined;
+    return String(row?.version ?? 'unknown version');
   } finally {
-    db.close(() => undefined);
+    db.close();
   }
 }

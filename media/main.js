@@ -83,12 +83,15 @@ import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-
               <input id="connectionName" required />
             </label>
             <label>Environment
-              <select id="connectionEnvironment">
-                <option value="">None</option>
-                <option value="local">Local</option>
-                <option value="staging">Staging</option>
-                <option value="prod">Production</option>
-              </select>
+              <div class="inlineInput envSelectRow">
+                <select id="connectionEnvironment">
+                  <option value="">None</option>
+                  <option value="local">Local (green)</option>
+                  <option value="staging">Staging (amber)</option>
+                  <option value="prod">Production (red)</option>
+                </select>
+                <span id="envPreview" class="envBadge" hidden></span>
+              </div>
             </label>
           </div>
 
@@ -220,6 +223,7 @@ import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-
     connectionType: document.getElementById('connectionType'),
     connectionName: document.getElementById('connectionName'),
     connectionEnvironment: document.getElementById('connectionEnvironment'),
+    envPreview: document.getElementById('envPreview'),
     sshEnabled: document.getElementById('sshEnabled'),
     sshHost: document.getElementById('sshHost'),
     sshPort: document.getElementById('sshPort'),
@@ -268,6 +272,7 @@ import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-
     sendRequest('testConnection', { connection: collectConnectionInput() });
   });
   elements.btnNewFolder.addEventListener('click', () => sendRequest('createFolder'));
+  elements.connectionEnvironment.addEventListener('change', updateEnvPreview);
   elements.objectFilter.value = state.filterTerm;
   elements.objectFilter.addEventListener('input', () => {
     state.filterTerm = elements.objectFilter.value;
@@ -439,6 +444,7 @@ import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-
       elements.sshKeyPath.value = '';
       elements.sshClearPassword.checked = false;
       updateConnectionTypeFields();
+      updateEnvPreview();
       return;
     }
 
@@ -480,6 +486,7 @@ import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-
     }
 
     updateConnectionTypeFields();
+    updateEnvPreview();
   }
 
   function hideConnectionForm() {
@@ -492,6 +499,19 @@ import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-
     const isSqlite = elements.connectionType.value === 'sqlite';
     elements.sqliteFields.hidden = !isSqlite;
     elements.mysqlFields.hidden = isSqlite;
+  }
+
+  // Live badge next to the Environment select, showing the colour the tree
+  // card (and panel strips) will get.
+  function updateEnvPreview() {
+    const value = elements.connectionEnvironment.value;
+    if (value) {
+      elements.envPreview.hidden = false;
+      elements.envPreview.className = `envBadge env-${value}`;
+      elements.envPreview.textContent = value === 'prod' ? 'production' : value;
+    } else {
+      elements.envPreview.hidden = true;
+    }
   }
 
   function collectConnectionInput() {
@@ -710,6 +730,11 @@ import { attachClosestEdge, extractClosestEdge } from '@atlaskit/pragmatic-drag-
           label: 'Export database…',
           icon: 'codicon-desktop-download',
           onSelect: () => sendRequest('exportDatabase', { connectionId: connection.connectionId }),
+        });
+        menuItems.push({
+          label: 'Disconnect',
+          icon: 'codicon-debug-disconnect',
+          onSelect: () => sendRequest('disconnectConnection', { connectionId: connection.connectionId }),
         });
       }
       menuItems.push({

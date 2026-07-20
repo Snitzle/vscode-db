@@ -48,6 +48,12 @@ The maintainer migrated from IntelliJ/DataGrip and most misses its database inte
 - **Language-model tools** — `#dbSchemas`, `#dbTable`, `#dbQuery` (`contributes.languageModelTools` + `vscode.lm.registerTool`): chat agents can list schemas, describe tables, and run a single read-only statement (guarded by `isReadOnlyStatement`, unit-tested; 100-row cap; user confirmation on query runs). **Explain** button in the query panel wraps the script in `EXPLAIN` / `EXPLAIN QUERY PLAN`.
 - **Deep links** — `vscode://<ext-id>/open?connection=…[&schema=…&table=…&type=view]` opens a grid or query console.
 
+## Shipped 2026-07-17 — node:sqlite migration
+
+- **Dropped the `sqlite3` native addon** for the Node built-in `node:sqlite` (`DatabaseSync`): one universal VSIX for every OS/architecture — no platform-specific packaging matrix, no install-time binary downloads, ~5 MB lighter. Spike-verified inside VS Code 1.129's own Electron runtime (Node 24.18); `engines.vscode` raised to `^1.102.0` (first releases with Node ≥ 22.13 in the extension host).
+- Behaviour preserved: async `DatabaseClient` contract, missing-file open errors (an `existsSync` guard — `DatabaseSync` would otherwise create the file), locked-DB retries (`errcode 5` added to `isLockedSqliteError`), boolean/undefined parameter coercion, BLOBs as hex (`Uint8Array` handling in `toScalar`), read-only test-connection opens.
+- **Real integration tests**: with no native addon, `test/sqliteClient.test.ts` runs the actual client against a temp database under mocha (schema listing, keys/autoincrement, paging + filters + counts, CRUD through row keys, raw scripts, view read-onlyness, DDL, BLOB rendering). The suite also passes when run under VS Code's Electron binary (`ELECTRON_RUN_AS_NODE=1`).
+
 ## Later
 
 - Query panel v2: autocomplete, EXPLAIN visualizer, result-grid copy actions.

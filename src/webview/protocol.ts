@@ -25,6 +25,7 @@ export type SidebarWebviewRequest =
   | ({ kind: 'removeConnection'; connectionId: string } & RequestBase)
   | ({ kind: 'reorderConnections'; orderedIds: string[] } & RequestBase)
   | ({ kind: 'connectConnection'; connectionId: string } & RequestBase)
+  | ({ kind: 'disconnectConnection'; connectionId: string } & RequestBase)
   | ({
       kind: 'moveConnection';
       connectionId: string;
